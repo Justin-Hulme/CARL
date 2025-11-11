@@ -47,7 +47,7 @@ int main(){
 		
 		char echo_string[50];
 		
-		int echo_length = snprintf(echo_string, 50, "You entered: %d", number);
+		int echo_length = snprintf(echo_string, 50, "You entered: %d\r\n", number);
 		uart_send(USART2, (uint8_t*)echo_string, echo_length);
 	}
 }
