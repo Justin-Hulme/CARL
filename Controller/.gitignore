@@ -1,0 +1,13 @@
+*.dep
+*.axf
+*.hex
+*.htm
+*.lnp
+*.map
+*.sct
+*.d
+*.o
+*.uv*
+.vscode/
+RTE/
+DebugConfig/
