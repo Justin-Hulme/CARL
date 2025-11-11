@@ -81,7 +81,7 @@ int uart_read_number(USART_TypeDef *USARTx){
     char next_char = '\0';
     int number = 0;
 
-    while (next_char != '\n'){
+    while (next_char != '\r'){
         next_char = uart_read_character(USARTx);
 
         if (next_char >= '0' && next_char <= '9'){
@@ -89,6 +89,8 @@ int uart_read_number(USART_TypeDef *USARTx){
             number += next_char - '0';
         }
     }
+		
+		uart_send(USARTx, (uint8_t*)"\r\n", 2);
 
     return number;
 }
