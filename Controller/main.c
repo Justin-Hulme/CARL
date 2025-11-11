@@ -4,13 +4,18 @@
 #include "stdio.h"
 
 int main(){
-	uart_init(USART2);
+	// select HSI as main clock
+	RCC->CR |= 0b1 << 8;
+	while ((RCC->CR & 0b1 << 10) == 0);
+	RCC->CFGR |= 1;
+
+	initialize_uart2();
 	
 	while (1){
 		int number = uart_read_number(USART2);
 		
 		char echo_string[50];
-		
-		snprintf(echo_string, 50, "You entered: %d", number);
+		int echo_length = snprintf(echo_string, 50, "You entered: %d\r\n", number);
+		uart_send(USART2, (uint8_t*)echo_string, echo_length);
 	}
 }

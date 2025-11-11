@@ -3,6 +3,7 @@
 
 #include "stm32l476xx.h"
 
+void initialize_uart2();
 void uart_init (USART_TypeDef * USARTx);
 void uart_send(USART_TypeDef *USARTx, uint8_t *buffer, uint32_t nBytes);
 void uart_read(USART_TypeDef *USARTx, uint8_t *buffer, uint32_t nBytes);
