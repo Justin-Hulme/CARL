@@ -1,2 +1,2 @@
-hello world
-:)
+Justin 11-11-25
+Got project set up and mine and Trace's laptops set up but Derek had Kiel problems. I also implemented a uart_get_int function that waited for a number to be entered followed by a /r and would save that to a variable. I hope this will be helpful for testing so that you can rapidly change values without having to recompile inbetween. To do this I restructured the uart code from our last lab to now include functions that read or wrote a single character and then changed the string code to just uses the single chararter functions in a loop.
