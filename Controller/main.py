@@ -3,20 +3,21 @@ import re
 import pygame
 import sys
 import pyautogui
-import time
 
 SERIAL_PORT = '/dev/ttyACM0'
 BAUDRATE = 9600
 
-line_pattern = re.compile(r'\r?\s*x:\s*(-?\d+), y:\s*(-?\d+)')
+# Regex to parse lines like: x:  18, y:  32
+line_pattern = re.compile(r'\s*x:\s*(-?\d+),\s*y:\s*(-?\d+)')
 
 WIDTH, HEIGHT = 400, 400
 JOYSTICK_RADIUS = 150
 KNOB_RADIUS = 20
 CENTER = (WIDTH // 2, HEIGHT // 2)
 
-# Sensitivity for mouse movement
-MOUSE_SENSITIVITY = 1.5  # tweak this for faster/slower cursor
+MOUSE_SENSITIVITY = 5  # Adjust this for mouse speed
+MOUSE_MOVE_THRESHOLD = 0.5  # Minimum move (pixels) to send mouse event
+DEADZONE = 8  # Joystick deadzone around zero
 
 def map_value(val, from_min, from_max, to_min, to_max):
     return int((val - from_min) / (from_max - from_min) * (to_max - to_min) + to_min)
@@ -24,12 +25,12 @@ def map_value(val, from_min, from_max, to_min, to_max):
 def main():
     pygame.init()
     screen = pygame.display.set_mode((WIDTH, HEIGHT))
-    pygame.display.set_caption("Joystick Visualizer")
+    pygame.display.set_caption("Joystick to Mouse")
     font = pygame.font.SysFont(None, 24)
     clock = pygame.time.Clock()
 
     try:
-        ser = serial.Serial(SERIAL_PORT, BAUDRATE, timeout=0.1)
+        ser = serial.Serial(SERIAL_PORT, BAUDRATE, timeout=0)  # Non-blocking read
         print(f"Opened serial port {SERIAL_PORT}")
     except serial.SerialException as e:
         print(f"Failed to open serial port {SERIAL_PORT}: {e}")
@@ -40,12 +41,13 @@ def main():
 
     running = True
     while running:
+        # Process Pygame events to allow clean exit
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
                 running = False
 
-        lines_read = 0
-        while lines_read < 5:
+        # Read all available lines from serial port (non-blocking)
+        while True:
             try:
                 raw_line = ser.readline()
             except serial.SerialException:
@@ -53,32 +55,29 @@ def main():
                 break
 
             if not raw_line:
-                break
+                break  # No more data
 
             try:
                 line = raw_line.decode('utf-8').strip()
             except UnicodeDecodeError:
-                continue
+                continue  # Skip malformed lines
 
             match = line_pattern.match(line)
             if match:
                 x_val = int(match.group(1))
                 y_val = int(match.group(2))
-            lines_read += 1
 
-        # Map joystick values (-128 to 127) to relative mouse movement
-        # Smaller joystick movement = smaller mouse move; deadzone around 0 to avoid drift
-        deadzone = 8
-
+        # Calculate relative mouse movement from joystick values
         move_x = 0
         move_y = 0
 
-        if abs(x_val) > deadzone:
-            move_x = -(x_val / 128) * MOUSE_SENSITIVITY * 10  # scale movement
-        if abs(y_val) > deadzone:
-            move_y = -(y_val / 128) * MOUSE_SENSITIVITY * 10  # invert Y axis for screen coords
+        if abs(x_val) > DEADZONE:
+            move_x = -(x_val / 128) * MOUSE_SENSITIVITY * 10  # Invert X axis
+        if abs(y_val) > DEADZONE:
+            move_y = -(y_val / 128) * MOUSE_SENSITIVITY * 10  # Invert Y axis for screen coords
 
-        if move_x != 0 or move_y != 0:
+        # Only move mouse if movement exceeds threshold (to avoid jitter)
+        if abs(move_x) > MOUSE_MOVE_THRESHOLD or abs(move_y) > MOUSE_MOVE_THRESHOLD:
             pyautogui.moveRel(move_x, move_y)
 
         # Draw joystick visualization
@@ -94,7 +93,7 @@ def main():
         screen.blit(text_raw, (10, 10))
 
         pygame.display.flip()
-        clock.tick(60)
+        clock.tick(60)  # 60 FPS cap
 
     ser.close()
     pygame.quit()
