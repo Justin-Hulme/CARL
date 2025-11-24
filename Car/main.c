@@ -2,6 +2,7 @@
 
 #include "uart.h"
 #include "stdio.h"
+#include "receiver.h"
 
 int main(){
 	// select HSI as main clock
@@ -10,12 +11,14 @@ int main(){
 	RCC->CFGR |= 1;
 
 	initialize_uart2();
+	receiver_init();
 	
 	while (1){
 		int number = uart_read_number(USART2);
 		
-		char echo_string[50];
-		int echo_length = snprintf(echo_string, 50, "You entered: %d\r\n", number);
-		uart_send(USART2, (uint8_t*)echo_string, echo_length);
+		uint8_t data = number & 0b11111111;
+		uint8_t tag = number >> 8;
+
+    	send_data(data, tag);
 	}
 }
