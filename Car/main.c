@@ -2,12 +2,16 @@
 
 #include "uart.h"
 #include "stdio.h"
+#include "motor.h"
 
 int main(){
 	// select HSI as main clock
 	RCC->CR |= 0b1 << 8;
 	while ((RCC->CR & 0b1 << 10) == 0);
 	RCC->CFGR |= 1;
+	
+	// call motor function
+	void motor(int8_t x);
 
 	initialize_uart2();
 	
