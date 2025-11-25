@@ -2,14 +2,18 @@
 
 int main(void)
 {
-    RCC->AHB2ENR |= RCC_AHB2ENR_GPIOAEN;
+		// Enable clock for GPIO A
+		// RCC_AHB2ENR pg 251
+    RCC->AHB2ENR |= RCC_AHB2ENR_GPIOCEN;
 
-    GPIOA->MODER &= ~(3 << (5 * 2));
-    GPIOA->MODER |= (1 << (5 * 2));
+		// Clear both bits in 
+		// GPIOx_MODER pg  303
+    GPIOC->MODER &= ~(3);
+    GPIOC->MODER |= (1);
 
     while (1)
     {
-        GPIOA->ODR ^= (1 << 5);
+        GPIOC->ODR ^= (1);
 
         for (volatile int i = 0; i < 100000; i++);
 
