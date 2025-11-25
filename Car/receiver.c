@@ -68,10 +68,10 @@ void TIM2_IRQHandler(){
     static bool rising_edge = false;
 
     if (TIM2->SR & TIM_SR_CC1IF){
+        uint32_t captured_time = TIM2->CCR1;
         TIM2->SR &= ~TIM_SR_CC1IF;
 
         // calculate the pulse width
-        uint32_t captured_time = TIM2->CCR1;
         uint32_t delta_time = captured_time - previous_time;
 
         // if enough time has passed this is the start of packet

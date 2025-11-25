@@ -12,13 +12,4 @@ int main(){
 
 	initialize_uart2();
 	receiver_init();
-	
-	while (1){
-		int number = uart_read_number(USART2);
-		
-		uint8_t data = number & 0b11111111;
-		uint8_t tag = number >> 8;
-
-    	send_data(data, tag);
-	}
 }
