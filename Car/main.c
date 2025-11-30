@@ -12,4 +12,6 @@ int main(){
 
 	initialize_uart2();
 	receiver_init();
+
+	while(1);
 }

@@ -9,6 +9,6 @@
 #define PACKET_GAP_DURATION 2400
 #define BITS_PER_PACKET 10
 
-void receiver_init();
+void receiver_init(void);
 
 #endif

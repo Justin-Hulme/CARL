@@ -3,8 +3,9 @@
 #include "uart.h"
 #include "stdio.h"
 
+// Define buffer parameters
 #define EDGES_PER_PACKET (BITS_PER_PACKET * 2)      // 20 edges per packet (10 bits * 2 edges)
-#define PACKETS_PER_BUFFER 6                         // Number of packets per half buffer
+#define PACKETS_PER_BUFFER 1                         // Number of packets per half buffer
 #define BUFFER_HALF_SIZE (EDGES_PER_PACKET * PACKETS_PER_BUFFER)  // 120 edges per half buffer
 #define BUFFER_SIZE (2 * BUFFER_HALF_SIZE)           // Ping-pong buffer total size
 
@@ -22,8 +23,12 @@ volatile uint8_t bits_received = 0;
 volatile uint8_t joy_x, joy_y, tilt_x, tilt_y;
 
 // Forward declarations (assuming uart_send_str is defined in uart.c/h)
+void gpioA0_init();
+void timer2_init();
+void dma_init();
+void watchdog_init();
 void process_capture_data(uint32_t *data, uint32_t length);
-void reset_packet(void);
+void reset_packet();
 
 // DMA1 Channel 5 IRQ Handler - processes captured data from the full/half buffer
 void DMA1_Channel5_IRQHandler(void) {
@@ -41,13 +46,6 @@ void DMA1_Channel5_IRQHandler(void) {
     } else {
         return; // Not a HT or TC interrupt
     }
-
-    // --- CRITICAL: Synchronization and Corruption Check ---
-    // If corruption was detected by the watchdog, skip processing this buffer half.
-    // However, since we rely on the watchdog's DMA reset to guarantee resync, 
-    // we must process the buffer *after* the DMA has been reset and started filling again.
-    // Given the previous discussion, we assume that after a DMA reset, this buffer half 
-    // contains the new, resynced data, so we don't need an explicit flag check here.
     
     // Process the now-valid buffer half
     process_capture_data((uint32_t *)&capture_buffer[buffer_start_index], BUFFER_HALF_SIZE);
@@ -57,14 +55,6 @@ void DMA1_Channel5_IRQHandler(void) {
 void TIM3_IRQHandler(void) {
     if (TIM3->SR & TIM_SR_UIF) {
         TIM3->SR &= ~TIM_SR_UIF; // Clear flag
-
-        // --- 1. Reset Decoding State & Time Base ---
-        // Resetting state variables and last_capture_time here is the most robust way 
-        // to handle an unsynchronized timeout.
-        reset_packet();
-        last_capture_time = 0;
-        
-        // --- 2. Safely Stop and Reset DMA Channel 5 (Resynchronize Pointer) ---
         
         // Disable DMA channel 5
         DMA1_Channel5->CCR &= ~DMA_CCR_EN;
@@ -84,6 +74,7 @@ void TIM3_IRQHandler(void) {
         }
         
         // Reset DMA memory address and data count to the start of the active half (Buffer Resync)
+        // This ensures the next captured edge writes to the start of a buffer half.
         DMA1_Channel5->CMAR = (uint32_t)active_half_ptr;
         DMA1_Channel5->CNDTR = BUFFER_HALF_SIZE;
         
@@ -97,6 +88,7 @@ void TIM3_IRQHandler(void) {
 
 // TIM2 IRQ to poke watchdog (runs on every edge capture)
 void TIM2_IRQHandler(void) {
+    // We only enable CC1IE to get the interrupt to poke the watchdog.
     if (TIM2->SR & TIM_SR_CC1IF) { 
         TIM2->SR &= ~TIM_SR_CC1IF;  // Clear interrupt flag
         
@@ -105,105 +97,77 @@ void TIM2_IRQHandler(void) {
     }
 }
 
-
-// Call this to reset decoding state
-void reset_packet(void) {
-    packet_buffer = 0;
-    bits_received = 0;
-    edge_is_rising = true;
-}
-
 // Process captured timer values in data[], length entries
 void process_capture_data(uint32_t *data, uint32_t length) {
-    for (uint32_t i = 0; i < length; i++) {
-        uint32_t captured_time = data[i];
-        uint32_t delta;
+    bool is_falling = true; // true since the loop skips the first one which is always rising
+    uint16_t raw_value = 0;
+    uint8_t num_read = 0;
 
-        // Calculate delta with overflow handling
-        if (captured_time >= last_capture_time) {
-            delta = captured_time - last_capture_time;
-        } else {
-            delta = (0xFFFFFFFF - last_capture_time) + captured_time + 1;
-        }
+    for (uint32_t i = 1; i < length; i++) {
+        uint32_t delta = data[i] - data[i-1]; 
+        delta &= 0xFFFFFFFF;
 
-        last_capture_time = captured_time;
-
-        // 🛑 Packet synchronization via long pulse check is REMOVED, 
-        // relying on watchdog/DMA reset to handle resync.
-
-        if (!edge_is_rising) {
-            // We just received a FALLING edge, delta is the HIGH pulse width (the data bit)
-            
-            // Decode pulse width into bits
-            if (delta > (ZERO_VAL - PADDING) && delta < (ZERO_VAL + PADDING)) {
-                packet_buffer = (packet_buffer << 1); // Append 0
-                bits_received++;
-            } else if (delta > (ONE_VAL - PADDING) && delta < (ONE_VAL + PADDING)) {
-                packet_buffer = (packet_buffer << 1) | 1; // Append 1
-                bits_received++;
-            } else {
-                // Invalid pulse width, reset packet state (Corruption detected)
-                reset_packet();
-                edge_is_rising = true; // Next expected edge is rising
+        if (is_falling){
+            if (delta > (ONE_VAL - PADDING) && delta < (ONE_VAL + PADDING)){
+                raw_value |= 1 << num_read;
+                num_read++;
+            }
+            else if (delta > (ZERO_VAL - PADDING) && delta < (ZERO_VAL + PADDING)){
+                num_read ++;
+            }
+            else {
+                break; // bad width so breaking to prevent bad data
             }
 
-            if (bits_received == BITS_PER_PACKET) {
-                uint8_t tag = (packet_buffer >> 8) & 0xFF;
-                uint8_t value = packet_buffer & 0xFF;
+            if (num_read >= BITS_PER_PACKET){
+                uint8_t packet_tag = raw_value >> 8;
+                uint8_t packet_data = raw_value & 0xFF;
 
-                switch (tag) {
-                    case 0x00: joy_x = value; break;
-                    case 0x01: joy_y = value; break;
-                    case 0x02: tilt_x = value; break;
-                    case 0x03: tilt_y = value; break;
-                    default: break; 
-                }
+                char string[100];
+                uint8_t string_len = sprintf(string, "tag: %2u, data %3u", packet_tag, packet_data);
 
-                char msg[64];
-                int len = sprintf(msg, "Packet received: tag=%02X val=%02X\r\n", tag, value);
-                uart_send_str(msg); // Assuming this is defined in uart.h/c
-
-                reset_packet(); // Ready for the next packet
+                uart_send(USART2, (uint8_t*)string, string_len);
             }
         }
 
-        edge_is_rising = !edge_is_rising;
+        is_falling = !is_falling;
     }
 }
 
-// === Initialization functions ===
-
 void receiver_init(void) {
-    // Enable GPIOA clock for PA0
-    RCC->AHB2ENR |= RCC_AHB2ENR_GPIOAEN;
+    gpioA0_init();
+    dma_init();
+    timer2_init();
+    // watchdog_init();
+}
 
-    // Configure PA0 as alternate function TIM2_CH1 (AF1)
+void gpioA0_init(){
+    RCC->AHB2ENR |= RCC_AHB2ENR_GPIOAEN;
     GPIOA->MODER &= ~(0b11 << (0*2));
-    GPIOA->MODER |=  (0b10 << (0*2));
+    GPIOA->MODER |=  (0b10 << (0*2)); // Alternate Function
     GPIOA->AFR[0] &= ~(0xF << (0*4));
-    GPIOA->AFR[0] |=  (0x1 << (0*4));
+    GPIOA->AFR[0] |=  (0x1 << (0*4)); // AF1 (TIM2_CH1)
     GPIOA->OTYPER &= ~(1 << 0);
     GPIOA->PUPDR &= ~(0b11 << (0*2));
-    GPIOA->OSPEEDR |= (0b11 << (0*2));  // Very high speed
+    GPIOA->OSPEEDR |= (0b11 << (0*2)); // Very high speed
+}
 
-    // Enable TIM2 clock
+void timer2_init(){
     RCC->APB1ENR1 |= RCC_APB1ENR1_TIM2EN;
+    TIM2->PSC = 15;             // 16 MHz / 16 = 1 MHz (1 us tick)
+    TIM2->ARR = 0xFFFFFFFF;     // Max 32-bit counter
 
-    // Configure TIM2
-    TIM2->PSC = 15;             // 16 MHz / (PSC+1) = 1 MHz (1 us tick)
-    TIM2->ARR = 0xFFFFFFFF;     // Max 32-bit
-
-    // Input capture on channel 1
+    // Input capture on channel 1 (CC1S = 01 for TI1)
     TIM2->CCMR1 &= ~TIM_CCMR1_CC1S;
-    TIM2->CCMR1 |= (0b01 << 0); // CC1S = 01 (TI1)
+    TIM2->CCMR1 |= (0b01 << 0);
 
-    // Capture both edges
-    TIM2->CCER |= TIM_CCER_CC1E | TIM_CCER_CC1P | TIM_CCER_CC1NP;
-
-    // Enable DMA request on capture compare 1
+    // Enable DMA request on capture compare 1 (CC1DE)
     TIM2->DIER |= TIM_DIER_CC1DE;
 
-    // Enable interrupt (for watchdog poke only)
+    // Capture both edges (CC1P=1, CC1NP=1)
+    TIM2->CCER |= TIM_CCER_CC1E | TIM_CCER_CC1P | TIM_CCER_CC1NP;
+
+    // Enable interrupt (CC1IE) for watchdog poke
     TIM2->DIER |= TIM_DIER_CC1IE;
 
     NVIC_SetPriority(TIM2_IRQn, 1);
@@ -217,16 +181,9 @@ void dma_init(void) {
     // Enable DMA1 clock
     RCC->AHB1ENR |= RCC_AHB1ENR_DMA1EN;
 
-    // --- CRITICAL DMAMUX CONFIGURATION ---
-    // Link TIM2_CH1 Request (ID 4) to DMA1 Channel 5 (User's Textbook)
-    
-    // 1. Clear the Request ID field (bits 0-7)
-    // DMAMUX1_Channel5->CCR &= ~(0xFF << 0); 
-    ->CCR &= ~(0xFF << 0); 
-    
-    // 2. Set the Request ID to 4 (for TIM2_CH1)
-    DMAMUX1_Channel5->CCR |= 4;                      
-    // -------------------------------------
+    // set chanel 5 to trigger 4 (tim2 channel 1)
+    DMA1_CSELR->CSELR &= ~(0b1111 << ((5-1) * 4));
+    DMA1_CSELR->CSELR |= 4 << ((5-1) * 4);
 
     // Disable DMA1 Channel5 before configuration
     DMA1_Channel5->CCR &= ~DMA_CCR_EN;
@@ -242,6 +199,9 @@ void dma_init(void) {
         DMA_CCR_TEIE        | // Transfer error interrupt enable
         DMA_CCR_HTIE        | // Half transfer interrupt enable
         DMA_CCR_TCIE        ; // Transfer complete interrupt enable
+
+    // set the data sizes to 32 bit
+    DMA1_Channel5->CCR |= (0b10 << 8) | (0b10 << 10);
 
     // Set priority and enable DMA interrupt
     NVIC_SetPriority(DMA1_Channel5_IRQn, 1);
