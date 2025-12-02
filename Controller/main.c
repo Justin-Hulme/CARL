@@ -20,13 +20,29 @@ int main(){
 	joystick_init();
 	
 	while (1){
-		send_data(joystick_get_x(), 0b010);
+		uint8_t buffer[10] = {
+			0xAA,
+			0x55,
+			0x12,
+			0x34,
+			0xF0,
+			joystick_get_x(), 
+			joystick_get_y(),
+			129,
+			-56,
+			0b1 << 1 | 0
+		};
 
-		delay(100);
+    uart_send(USART2, (uint8_t*)buffer, 10);
+		uart_send(USART1, (uint8_t*)buffer, 10);
+		delay(1000);
+		// send_data(joystick_get_x(), 0b010);
 
-		send_data(joystick_get_y(), 0b011);
+		// delay(100);
+
+		// send_data(joystick_get_y(), 0b011);
 		
-		delay(100);
+		// delay(100);
 		// int number = uart_read_number(USART2);
 		
 		// uint8_t data = number & 0b11111111;

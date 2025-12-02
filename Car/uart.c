@@ -95,7 +95,7 @@ char uart_read_character(USART_TypeDef *USARTx){
 	
 	char read_in = USARTx->RDR;
 
-	uart_send_character(USARTx, read_in);
+	// uart_send_character(USARTx, read_in);
 
 	return read_in;
 } 
@@ -125,4 +125,23 @@ int uart_read_number(USART_TypeDef *USARTx){
 		uart_send(USARTx, (uint8_t*)"\r\n", 2);
 
     return number;
+}
+
+int uart_read_string(USART_TypeDef *USARTx, char* buffer, int buffer_length){
+	char next_char = '\0';
+	int buffer_pointer = 0;
+
+	while (buffer_pointer < buffer_length - 1){
+		next_char = uart_read_character(USARTx);
+
+		if (next_char == '\n'){
+			break;
+		}
+
+		buffer[buffer_pointer] = next_char;
+		buffer_pointer ++;
+	}
+
+	buffer[buffer_pointer] = '\0';
+	return buffer_pointer;
 }
