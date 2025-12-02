@@ -4,6 +4,7 @@
 #include "uart.h"
 #include "stdio.h"
 #include "receiver.h"
+#include "motor.h"
 
 const uint8_t SOF[5] = {0xAA, 0x55, 0x12, 0x34, 0xF0};
 uint8_t joy_x, joy_y, tilt_x, tilt_y, fire_btn, joy_btn;
@@ -13,11 +14,22 @@ int main(){
 	RCC->CR |= 0b1 << 8;
 	while ((RCC->CR & 0b1 << 10) == 0);
 	RCC->CFGR |= 1;
+	
+	// initialize motor
+	Motor_Init();
+	
+  	// // call motor function
+    // while (1)
+    // {
+	// 			Motor_SetSpeed(6);    // CW, fast
+    //     for (volatile int i=0;i<2000000;i++);
 
-	RCC->AHB2ENR |= RCC_AHB2ENR_GPIOCEN;
+    //     Motor_SetSpeed(-6);   // CCW, slower
+    //     for (volatile int i=0;i<2000000;i++);
 
-	GPIOC->MODER &= ~(0b11 << (0 * 2));
-    GPIOC->MODER |= (0b01 << (0 * 2));
+    //     Motor_SetSpeed(0);    // Stop
+    //     for (volatile int i=0;i<2000000;i++);
+    // }
 
 
 	initialize_uart2();
@@ -28,7 +40,6 @@ int main(){
 
         if (PacketReady) {
             PacketReady = 0;
-			GPIOC->ODR ^= 1;
 
 			// uart_send_character(USART2, LastPacket.joy_x);
 			// uart_send_character(USART2, LastPacket.joy_y);
