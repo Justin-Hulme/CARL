@@ -3,7 +3,10 @@
 
 #include "stm32l476xx.h"
 
-void Motor_Init(void);
-void Motor_SetSpeed(int speed);  // signed: +CW, -CCW, 0=stop
+void aMotor_Init(void);
+void aMotor_SetSpeed(int speed);  // signed: +CW, -CCW, 0=stop
+
+void bMotor_Init(void);
+void bMotor_SetSpeed(int speed);  // signed: +CW, -CCW, 0=stop
 
 #endif

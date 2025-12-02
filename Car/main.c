@@ -14,7 +14,7 @@ int main(){
 	RCC->CFGR |= 1;
 	
 	// initialize motor
-	Motor_Init();
+	aMotor_Init();
 
 	// start the clock
 	RCC->AHB2ENR |= RCC_AHB2ENR_GPIOCEN;
@@ -22,7 +22,29 @@ int main(){
 	// set PC9 as an output
 	GPIOC->MODER &= ~(0b11 << (9 * 2));
 	GPIOC->MODER |= 0b01 << (9 * 2);
+	bMotor_Init();
 	
+  // call motor function
+    // while (1)
+    // {
+	// 			aMotor_SetSpeed(6);    // CW, fast
+    //     for (volatile int i=0;i<2000000;i++);
+
+    //     aMotor_SetSpeed(-6);   // CCW, slower
+    //     for (volatile int i=0;i<2000000;i++);
+
+    //     aMotor_SetSpeed(0);    // Stop
+    //     for (volatile int i=0;i<2000000;i++);
+			
+	// 			bMotor_SetSpeed(6);    // CW, fast
+    //     for (volatile int i=0;i<2000000;i++);
+
+    //     bMotor_SetSpeed(-6);   // CCW, slower
+    //     for (volatile int i=0;i<2000000;i++);
+
+    //     bMotor_SetSpeed(0);    // Stop
+    //     for (volatile int i=0;i<2000000;i++);
+    // }
   	// // call motor function
     // while (1)
     // {
