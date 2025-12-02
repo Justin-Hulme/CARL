@@ -1,111 +1,42 @@
 #include "transmitter.h"
 #include <stdbool.h>
+#include "uart.h"
 
-void transmitter_init(){
-    // set A0 up for alternate function
-    
-    // enable the clock on port A
+void initialize_uart1() {
+
+    // Enable GPIOA clock
     RCC->AHB2ENR |= RCC_AHB2ENR_GPIOAEN;
 
-    // set the mode to alternate function
-    GPIOA->MODER &= ~(0b11 << (5*2));
-    GPIOA->MODER |= 0b10 << (5*2);
+    // Set PA9 (TX) and PA10 (RX) to AF mode
+    GPIOA->MODER &= ~(0b1111 << (9 * 2));   // clear mode bits for PA9, PA10
+    GPIOA->MODER |=  (0b1010 << (9 * 2));   // set to AF (10)
 
-    // set the alternate function to AF1
-    GPIOA->AFR[0] &= ~(0b1111 << (5*4));
-    GPIOA->AFR[0] |= 0b0001 << (5*4);
+    // Set AF7 (USART1) for PA9 and PA10
+    GPIOA->AFR[1] &= ~((0xF << (4 * 1)) | (0xF << (4 * 2)));  // clear AFR fields
+    GPIOA->AFR[1] |=  ((0x7 << (4 * 1)) | (0x7 << (4 * 2)));  // AF7 = USART1
 
-    GPIOA->OTYPER &= ~(1 << (5*2));       // push-pull
-    GPIOA->PUPDR &= ~(0b11 << (5*2)); // no pull-up/pull-down
+    // High speed for PA9 / PA10
+    GPIOA->OSPEEDR |= (0b1111 << (9 * 2));
 
-    // set the speed to very high
-    GPIOA->OSPEEDR |= 0b11 << (5*2);
+    // Pull-up PA9 (TX) and PA10 (RX)
+    GPIOA->PUPDR &= ~(0b1111 << (9 * 2));
+    GPIOA->PUPDR |=  (0b0101 << (9 * 2));    // pull-up on both pins
 
-    // set up the timer
+    // Push-pull output for TX
+    GPIOA->OTYPER &= ~(0x3 << 9);
 
-    // enable the clock
-    RCC->APB1ENR1 |= RCC_APB1ENR1_TIM2EN;
+    // Enable USART1 clock
+    RCC->APB2ENR |= RCC_APB2ENR_USART1EN;
 
-    // set direction to up counting
-    TIM2->CR1 &= ~TIM_CR1_DIR;
+    // Select system clock for USART1
+    RCC->CCIPR &= ~RCC_CCIPR_USART1SEL;
+    RCC->CCIPR |=  RCC_CCIPR_USART1SEL_0;  // SYSCLK
 
-    // set the prescaler
-    TIM2->PSC = 15; // 16MHz/(1+15) = 1MHz = 1 us
-
-    // set the auto-reload
-    TIM2->ARR = ARR_VAL;
-
-    // clear output compare mode
-    TIM2->CCMR1 &= ~TIM_CCMR1_OC1M;
-
-    // set to PWM mode
-    TIM2->CCMR1 |= TIM_CCMR1_OC1M_1 | TIM_CCMR1_OC1M_2;
-
-    // enable output to channel 1
-    TIM2->CCER |= TIM_CCER_CC1E;
-
-    // enable interrupt
-    TIM2->DIER |= TIM_DIER_UIE;
-    NVIC_EnableIRQ(TIM2_IRQn);
+    // Initialize with your UART driver
+    uart_init(USART1);
 }
 
-uint8_t num_left_to_send = 0;
-uint16_t to_send = 0;
-bool done_sending = true;
-
-void send_data(uint8_t data, uint8_t tag){
-    // wait to be done sending
-    while (!done_sending);
-
-    // set up the data
-    num_left_to_send = 10;
-    to_send = (uint16_t)tag << 8 | data;
-
-    // reset counter
-    TIM2->CNT = 0;
-
-    // // preload first bit
-    // if (to_send & (1 << (num_left_to_send - 1))) {
-    //     TIM2->CCR1 = ONE_VAL;
-    // } else {
-    //     TIM2->CCR1 = ZERO_VAL;
-    // }
-    // num_left_to_send--;
-
-    // force shadow register update NOW
-    TIM2->EGR = TIM_EGR_UG;
-
-    done_sending = false;
-
-    // start timer
-    TIM2->CR1 |= TIM_CR1_CEN;
-}
-
-// fires in ARR
-void TIM2_IRQHandler(){
-    if (TIM2->SR & TIM_SR_UIF) {
-        TIM2->SR &= ~TIM_SR_UIF; // clear flag
-        
-        // if we have sent everything
-        if (num_left_to_send == 0){
-            // disable timer
-            TIM2->CR1 &= ~TIM_CR1_CEN;
-
-            // set output low
-            TIM2->CCR1 = 0;
-
-            done_sending = true;
-            return;
-        }
-
-        // send next bit
-        if ((to_send & (0b1 << (num_left_to_send - 1))) == 0){
-            TIM2->CCR1 = ZERO_VAL;
-        }
-        else {
-            TIM2->CCR1 = ONE_VAL;
-        }
-        num_left_to_send --;
-
-    }
+void transmitter_init() {
+    // your custom transmitter setup here
+    initialize_uart1();
 }

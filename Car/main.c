@@ -1,8 +1,13 @@
 #include "stm32l476xx.h"
+#include "stdbool.h"
 
 #include "uart.h"
 #include "stdio.h"
+#include "receiver.h"
 #include "motor.h"
+
+const uint8_t SOF[5] = {0xAA, 0x55, 0x12, 0x34, 0xF0};
+uint8_t joy_x, joy_y, tilt_x, tilt_y, fire_btn, joy_btn;
 
 int main(){
 	// select HSI as main clock
@@ -14,6 +19,7 @@ int main(){
 	aMotor_Init();
 	bMotor_Init();
 	
+<<<<<<< HEAD
   // call motor function
     while (1)
     {
@@ -35,15 +41,37 @@ int main(){
         bMotor_SetSpeed(0);    // Stop
         for (volatile int i=0;i<2000000;i++);
     }
+=======
+  	// // call motor function
+    // while (1)
+    // {
+	// 			Motor_SetSpeed(6);    // CW, fast
+    //     for (volatile int i=0;i<2000000;i++);
+
+    //     Motor_SetSpeed(-6);   // CCW, slower
+    //     for (volatile int i=0;i<2000000;i++);
+
+    //     Motor_SetSpeed(0);    // Stop
+    //     for (volatile int i=0;i<2000000;i++);
+    // }
+>>>>>>> 672f5fea3c25475b0abb50bda2780dd3e228d8c4
 
 
 	initialize_uart2();
-	
-	while (1){
-		int number = uart_read_number(USART2);
-		
-		char echo_string[50];
-		int echo_length = snprintf(echo_string, 50, "You entered: %d\r\n", number);
-		uart_send(USART2, (uint8_t*)echo_string, echo_length);
+	receiver_init();
+
+	while(1){
+		process_dma_buffer();
+
+        if (PacketReady) {
+            PacketReady = 0;
+
+			// uart_send_character(USART2, LastPacket.joy_x);
+			// uart_send_character(USART2, LastPacket.joy_y);
+            // // Use the parsed packet
+            // printf("JoyX: %d, JoyY: %d\n", LastPacket.joy_x, LastPacket.joy_y);
+
+            // // ... handle other controls ...
+        }
 	}
 }
