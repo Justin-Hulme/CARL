@@ -10,8 +10,22 @@ int main(){
 	while ((RCC->CR & 0b1 << 10) == 0);
 	RCC->CFGR |= 1;
 	
-	// call motor function
-	void motor(int8_t x);
+	// initialize motor
+	Motor_Init();
+	
+  // call motor function
+    while (1)
+    {
+				Motor_SetSpeed(6);    // CW, fast
+        for (volatile int i=0;i<2000000;i++);
+
+        Motor_SetSpeed(-6);   // CCW, slower
+        for (volatile int i=0;i<2000000;i++);
+
+        Motor_SetSpeed(0);    // Stop
+        for (volatile int i=0;i<2000000;i++);
+    }
+
 
 	initialize_uart2();
 	
