@@ -5,9 +5,7 @@
 #include "stdio.h"
 #include "receiver.h"
 #include "motor.h"
-
-const uint8_t SOF[5] = {0xAA, 0x55, 0x12, 0x34, 0xF0};
-uint8_t joy_x, joy_y, tilt_x, tilt_y, fire_btn, joy_btn;
+#include "delay.h"
 
 int main(){
 	// select HSI as main clock
@@ -17,6 +15,13 @@ int main(){
 	
 	// initialize motor
 	Motor_Init();
+
+	// start the clock
+	RCC->AHB2ENR |= RCC_AHB2ENR_GPIOCEN;
+
+	// set PC9 as an output
+	GPIOC->MODER &= ~(0b11 << (9 * 2));
+	GPIOC->MODER |= 0b01 << (9 * 2);
 	
   	// // call motor function
     // while (1)
@@ -32,7 +37,7 @@ int main(){
     // }
 
 
-	initialize_uart2();
+	// initialize_uart2();
 	receiver_init();
 
 	while(1){
@@ -41,12 +46,17 @@ int main(){
         if (PacketReady) {
             PacketReady = 0;
 
-			// uart_send_character(USART2, LastPacket.joy_x);
-			// uart_send_character(USART2, LastPacket.joy_y);
-            // // Use the parsed packet
-            // printf("JoyX: %d, JoyY: %d\n", LastPacket.joy_x, LastPacket.joy_y);
+			bool fire_btn = (LastPacket.buttons & 1);
+			bool joy_btn = ((LastPacket.buttons >> 1) & 1);
 
-            // // ... handle other controls ...
+
+			GPIOC->ODR &= ~(0b1 << 9);
+
+			if (!fire_btn){
+				GPIOC->ODR |= 1 << 9;
+			}
         }
+
+		delay(20);
 	}
 }

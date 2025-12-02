@@ -15,6 +15,11 @@ void System_Clock_Init(void) {
 	RCC->CFGR |= 1;
 }
 
+//int32_t map_int(int32_t x, int32_t in_min, int32_t in_max, int32_t out_min, int32_t out_max){
+//    return (x - in_min) * (out_max - out_min) / (in_max - in_min) + out_min;
+//}
+
+
 int main(void){
     // 1. Initialize System Clock to HSI (16 MHz) first
     System_Clock_Init();
@@ -22,8 +27,20 @@ int main(void){
 	transmitter_init();
 	joystick_init();
 	Accelerometer_Init();
+
+	// enable the clock
+	RCC->AHB2ENR |= RCC_AHB2ENR_GPIOCEN;
+
+	// set PC0 and 1 to input
+	GPIOC->MODER &= ~0b1111;
+
+	// set as pull up
+	GPIOC->PUPDR &= ~0b1111;
+	GPIOC->PUPDR |= 0b0101;
+
 	int16_t accel_x, accel_y, accel_z;
-	
+	// char buffer2[50];
+
 	while (1){
 		Accelerometer_Read_Values(&accel_x, &accel_y, &accel_z);
 
@@ -37,12 +54,16 @@ int main(void){
 			joystick_get_y(),
 			accel_x >> 8,
 			accel_y >> 8,
-			0b1 << 1 | 0
+			GPIOC->IDR & 0b11
 		};
 
-    uart_send(USART2, (uint8_t*)buffer, 10);
+		//uart_send(USART2, (uint8_t*)buffer, 10);
 		uart_send(USART1, (uint8_t*)buffer, 10);
-		delay(500);
+
+		// snprintf(buffer2, 50, "X: %d, Y: %d, Z: %d\r\n", accel_x >> 8, accel_y >> 8, accel_z >> 8);
+		// uart_send(USART2, (uint8_t*)buffer2, strlen(buffer2));
+		
+		delay(20);
 		// send_data(joystick_get_x(), 0b010);
 
 		// delay(100);
@@ -85,4 +106,4 @@ int main(void){
     //     // Simple delay loop 
     //     for(int i = 0; i < 20000; i++);
     // }
-}
+//}

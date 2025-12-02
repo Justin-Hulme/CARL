@@ -1,6 +1,7 @@
 #include "receiver.h"
 #include <stdbool.h>
 #include "uart.h"
+#include "delay.h"
 
 volatile uint8_t PacketReady = 0;
 volatile control_data_t LastPacket;
