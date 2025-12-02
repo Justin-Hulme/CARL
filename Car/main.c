@@ -11,18 +11,28 @@ int main(){
 	RCC->CFGR |= 1;
 	
 	// initialize motor
-	Motor_Init();
+	aMotor_Init();
+	bMotor_Init();
 	
   // call motor function
     while (1)
     {
-				Motor_SetSpeed(6);    // CW, fast
+				aMotor_SetSpeed(6);    // CW, fast
         for (volatile int i=0;i<2000000;i++);
 
-        Motor_SetSpeed(-6);   // CCW, slower
+        aMotor_SetSpeed(-6);   // CCW, slower
         for (volatile int i=0;i<2000000;i++);
 
-        Motor_SetSpeed(0);    // Stop
+        aMotor_SetSpeed(0);    // Stop
+        for (volatile int i=0;i<2000000;i++);
+			
+				bMotor_SetSpeed(6);    // CW, fast
+        for (volatile int i=0;i<2000000;i++);
+
+        bMotor_SetSpeed(-6);   // CCW, slower
+        for (volatile int i=0;i<2000000;i++);
+
+        bMotor_SetSpeed(0);    // Stop
         for (volatile int i=0;i<2000000;i++);
     }
 
