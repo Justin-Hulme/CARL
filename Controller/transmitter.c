@@ -61,7 +61,7 @@ void send_data(uint8_t data, uint8_t tag){
 
     // set up the data
     num_left_to_send = BITS_PER_PACKET;
-    to_send = ((uint16_t)tag << 8) | data;
+    to_send = (((uint16_t)tag << 8) | data);// << 1; // shift out a garbage 0 to make up receiver
 
     // reset counter
     TIM5->CNT = 0;

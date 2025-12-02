@@ -11,134 +11,224 @@
 
 // === Globals ===
 volatile uint32_t capture_buffer[BUFFER_SIZE];
-
-volatile uint32_t last_capture_time = 0;
-volatile bool edge_is_rising = true;
-
-// Decoding state variables
-volatile uint32_t packet_buffer = 0;
-volatile uint8_t bits_received = 0;
+volatile uint32_t available_buffer_pointer; // points to last filled spot
+volatile uint32_t buffer_read_pointer; // points to last read spot
+volatile uint16_t packet_data = 0;
 
 // Placeholders for decoded data
-volatile uint8_t joy_x, joy_y, tilt_x, tilt_y;
+volatile uint8_t joy_x, joy_y, tilt_x, tilt_y, fire_button, joystick_button;
+volatile uint16_t last_packet;
 
 // Forward declarations (assuming uart_send_str is defined in uart.c/h)
 void gpioA0_init();
 void timer2_init();
 void dma_init();
-void watchdog_init();
-void process_capture_data(uint32_t *data, uint32_t length);
-void reset_packet();
 
 // DMA1 Channel 5 IRQ Handler - processes captured data from the full/half buffer
 void DMA1_Channel5_IRQHandler(void) {
-    uint32_t buffer_start_index = 0;
-    
-    // Half-transfer interrupt (Ping buffer ready)
+    // Check for Transfer-complete interrupt (Pong buffer ready)
+    if (DMA1->ISR & DMA_ISR_TCIF5) {
+        DMA1->IFCR = DMA_IFCR_CTCIF5; // Clear TC flag only
+        available_buffer_pointer = BUFFER_HALF_SIZE;
+    }
+
+    // Check for Half-transfer interrupt (Ping buffer ready)
     if (DMA1->ISR & DMA_ISR_HTIF5) {
-        DMA1->IFCR = DMA_IFCR_CHTIF5; // Clear flag
-        buffer_start_index = 0;
+        DMA1->IFCR = DMA_IFCR_CHTIF5; // Clear HT flag only
+        available_buffer_pointer = 0;
     }
-    // Transfer-complete interrupt (Pong buffer ready)
-    else if (DMA1->ISR & DMA_ISR_TCIF5) {
-        DMA1->IFCR = DMA_IFCR_CTCIF5; // Clear flag
-        buffer_start_index = BUFFER_HALF_SIZE;
-    } else {
-        return; // Not a HT or TC interrupt
-    }
-    
-    // Process the now-valid buffer half
-    process_capture_data((uint32_t *)&capture_buffer[buffer_start_index], BUFFER_HALF_SIZE);
-}
 
-// TIM3 Watchdog IRQ Handler (Timeout/Synchronization Loss)
-void TIM3_IRQHandler(void) {
-    if (TIM3->SR & TIM_SR_UIF) {
-        TIM3->SR &= ~TIM_SR_UIF; // Clear flag
-        
-        // Disable DMA channel 5
+    // IMPORTANT: Check and Clear Transfer Error Flag!
+    // An unchecked Transfer Error (TEIF5) will also cause a lockup.
+    // You enabled the error interrupt with DMA_CCR_TEIE.
+    if (DMA1->ISR & DMA_ISR_TEIF5) {
+        DMA1->IFCR = DMA_IFCR_CTEIF5; // Clear TE flag
+        // You should also disable the DMA channel on a fatal error
         DMA1_Channel5->CCR &= ~DMA_CCR_EN;
-        
-        // Clear all DMA interrupt flags for channel 5
-        DMA1->IFCR = DMA_IFCR_CTCIF5 | DMA_IFCR_CHTIF5 | DMA_IFCR_CTEIF5;
-        
-        // Determine the address of the half that was being filled (active)
-        uint32_t *active_half_ptr;
-        
-        // If CNDTR > BUFFER_HALF_SIZE, DMA was filling the first half (Ping).
-        if (DMA1_Channel5->CNDTR > BUFFER_HALF_SIZE) {
-            active_half_ptr = (uint32_t *)&capture_buffer[0];
-        } else {
-            // DMA was filling the second half (Pong).
-            active_half_ptr = (uint32_t *)&capture_buffer[BUFFER_HALF_SIZE];
-        }
-        
-        // Reset DMA memory address and data count to the start of the active half (Buffer Resync)
-        // This ensures the next captured edge writes to the start of a buffer half.
-        DMA1_Channel5->CMAR = (uint32_t)active_half_ptr;
-        DMA1_Channel5->CNDTR = BUFFER_HALF_SIZE;
-        
-        // Reset the watchdog timer counter
-        TIM3->CNT = 0;
-        
-        // Re-enable DMA channel 5
-        DMA1_Channel5->CCR |= DMA_CCR_EN;
+        // Optionally handle the error in your main loop or set a global error flag
     }
 }
 
-// TIM2 IRQ to poke watchdog (runs on every edge capture)
-void TIM2_IRQHandler(void) {
-    // We only enable CC1IE to get the interrupt to poke the watchdog.
-    if (TIM2->SR & TIM_SR_CC1IF) { 
-        TIM2->SR &= ~TIM_SR_CC1IF;  // Clear interrupt flag
-        
-        // reset watch dog
-        TIM3->CNT = 0;
+enum packet_state{
+    no_packet,
+    one_bit,
+    zero_bit,
+    in_packet
+};
+
+bool packet_state_machine(uint32_t delta){
+    static enum packet_state current_state = no_packet;
+    static uint32_t data_read = 0;
+    static uint32_t last_delta = 0;
+
+    switch (current_state)
+    {
+    case no_packet:
+        if (delta <= ONE_VAL_MAX && delta >= ONE_VAL_MIN){
+            packet_data |= 1 << (BITS_PER_PACKET - data_read - 1);
+            data_read++;
+
+            current_state = one_bit;
+        }
+        else if (delta <= ZERO_VAL_MAX && delta >= ZERO_VAL_MIN){
+            packet_data |= 0 << (BITS_PER_PACKET - data_read - 1);
+            data_read++;
+
+            current_state = zero_bit;
+        }
+        break;
+    case one_bit:
+        if (data_read == BITS_PER_PACKET){
+            data_read = 0;
+
+            current_state = no_packet;
+            last_delta = delta;
+
+            return true;
+        }
+        else if (delta + last_delta <= DATA_PERIOD_MAX && delta + last_delta >= DATA_PERIOD_MIN){
+            current_state = in_packet;
+        }
+        else{
+            data_read = 0;
+
+            current_state = no_packet;
+        }
+        break;
+    case zero_bit:
+        if (data_read == BITS_PER_PACKET){
+            data_read = 0;
+
+            current_state = no_packet;
+            last_delta = delta;
+
+            return true;
+        }
+        else if (delta + last_delta <= DATA_PERIOD_MAX && delta + last_delta >= DATA_PERIOD_MIN){
+            current_state = in_packet;
+        }
+        else{
+            data_read = 0;
+
+            current_state = no_packet;
+        }
+        break;
+    case in_packet:
+        if (delta <= ONE_VAL_MAX && delta >= ONE_VAL_MIN){
+            packet_data |= 1 << (BITS_PER_PACKET - data_read - 1);
+            data_read++;
+
+            current_state = one_bit;
+        }
+        else if (delta <= ZERO_VAL_MAX && delta >= ZERO_VAL_MIN){
+            packet_data |= 0 << (BITS_PER_PACKET - data_read - 1);
+            data_read++;
+
+            current_state = zero_bit;
+        }
+        else {
+            data_read = 0;
+
+            current_state = no_packet;
+        }
+        break;
+    default:
+        break;
     }
+
+    last_delta = delta;
+
+    return false;
 }
 
-// Process captured timer values in data[], length entries
-void process_capture_data(uint32_t *data, uint32_t length) {
-    bool is_falling = true; // true since the loop skips the first one which is always rising
-    uint16_t raw_value = 0;
-    uint8_t num_read = 0;
+bool receiver_main(){
+    static uint32_t last_pointer = 0;
+    static uint32_t last_value = 0;
 
-    for (uint32_t i = 1; i < length; i++) {
-        uint32_t delta = data[i] - data[i-1]; 
-        delta &= 0xFFFFFFFF;
+    // wait for a new half to be available
+    while (last_pointer == available_buffer_pointer);
 
-        if (is_falling){
-            if (delta > (ONE_VAL - PADDING) && delta < (ONE_VAL + PADDING)){
-                raw_value |= 1 << num_read;
-                num_read++;
+    uint32_t start = available_buffer_pointer;
+    uint32_t* available_buffer = &capture_buffer[start];
+
+    for (int i = 0; i < BUFFER_HALF_SIZE; i++){
+        uint32_t delta = available_buffer[i] - last_value;
+
+        bool packet_read = packet_state_machine(delta);
+
+        if (packet_read){
+            uint8_t tag = (packet_data >> 8) & 0b111;
+            uint8_t data = packet_data & 0xFF;
+            last_packet = packet_data;
+
+            switch (tag)
+            {
+            case 0b000: // tilt x
+                tilt_x = data;
+                break;
+            case 0b001: // tilt y
+                tilt_y = data;
+                break;
+            case 0b010: // joystick x
+                joy_x = data;
+                break;
+            case 0b011: // joystick y
+                joy_y = data;
+                break;
+            case 0b100: // buttons
+                fire_button = data & 1;
+                joystick_button = (data >> 1) & 1;
+                break;
+            default:
+                break;
             }
-            else if (delta > (ZERO_VAL - PADDING) && delta < (ZERO_VAL + PADDING)){
-                num_read ++;
-            }
-            else {
-                break; // bad width so breaking to prevent bad data
-            }
 
-            if (num_read >= BITS_PER_PACKET){
-                uint8_t packet_tag = raw_value >> 8;
-                uint8_t packet_data = raw_value & 0xFF;
+            packet_data = 0;
 
-                char string[100];
-                uint8_t string_len = sprintf(string, "tag: %2u, data %3u", packet_tag, packet_data);
-
-                uart_send(USART2, (uint8_t*)string, string_len);
-            }
+            return true;
         }
 
-        is_falling = !is_falling;
+        last_value = available_buffer[i];
+        available_buffer[i] = 0;
     }
+
+    last_pointer = available_buffer_pointer;
+
+    return false;
+}
+
+uint8_t get_tilt_x(){
+    return tilt_x;
+}
+
+uint8_t get_tilt_y(){
+    return tilt_y;
+}
+
+uint8_t get_joy_x(){
+    return joy_x;
+}
+
+uint8_t get_joy_y(){
+    return joy_y;
+}
+
+uint8_t get_fire_button(){
+    return fire_button;
+}
+
+uint8_t get_joystick_button(){
+    return joystick_button;
+}
+
+uint16_t get_last_packet(){
+    return last_packet;
 }
 
 void receiver_init(void) {
     gpioA0_init();
     dma_init();
     timer2_init();
-    // watchdog_init();
 }
 
 void gpioA0_init(){
@@ -167,12 +257,6 @@ void timer2_init(){
     // Capture both edges (CC1P=1, CC1NP=1)
     TIM2->CCER |= TIM_CCER_CC1E | TIM_CCER_CC1P | TIM_CCER_CC1NP;
 
-    // Enable interrupt (CC1IE) for watchdog poke
-    TIM2->DIER |= TIM_DIER_CC1IE;
-
-    NVIC_SetPriority(TIM2_IRQn, 1);
-    NVIC_EnableIRQ(TIM2_IRQn);
-
     // Enable TIM2 counter
     TIM2->CR1 |= TIM_CR1_CEN;
 }
@@ -196,7 +280,7 @@ void dma_init(void) {
     DMA1_Channel5->CCR =
         DMA_CCR_MINC        | // Memory increment mode
         DMA_CCR_CIRC        | // Circular mode (Ping-Pong)
-        DMA_CCR_TEIE        | // Transfer error interrupt enable
+        //DMA_CCR_TEIE        | // Transfer error interrupt enable
         DMA_CCR_HTIE        | // Half transfer interrupt enable
         DMA_CCR_TCIE        ; // Transfer complete interrupt enable
 
@@ -204,24 +288,9 @@ void dma_init(void) {
     DMA1_Channel5->CCR |= (0b10 << 8) | (0b10 << 10);
 
     // Set priority and enable DMA interrupt
-    NVIC_SetPriority(DMA1_Channel5_IRQn, 1);
+    NVIC_SetPriority(DMA1_Channel5_IRQn, 0);
     NVIC_EnableIRQ(DMA1_Channel5_IRQn);
 
     // Enable DMA channel
     DMA1_Channel5->CCR |= DMA_CCR_EN;
-}
-
-void watchdog_init(void) {
-    // Enable TIM3 clock
-    RCC->APB1ENR1 |= RCC_APB1ENR1_TIM3EN;
-
-    TIM3->PSC = 15;          // Prescale to 1 MHz (same as TIM2)
-    TIM3->ARR = 5000;        // 5000 us = 5 ms timeout
-    TIM3->CNT = 0;
-
-    TIM3->DIER |= TIM_DIER_UIE;    // Update interrupt enable
-    NVIC_SetPriority(TIM3_IRQn, 1);
-    NVIC_EnableIRQ(TIM3_IRQn);
-
-    TIM3->CR1 |= TIM_CR1_CEN;      // Start TIM3
 }

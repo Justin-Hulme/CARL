@@ -88,10 +88,10 @@ void joystick_init(){
 }
 
 
-uint8_t get_x(){
+uint8_t joystick_get_x(){
     return (uint8_t)(ADC_values[0] >> 4);
 }
 
-uint8_t get_y(){
+uint8_t joystick_get_y(){
     return (uint8_t)(ADC_values[1] >> 4);
 }
