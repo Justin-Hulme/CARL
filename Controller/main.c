@@ -35,7 +35,7 @@ int main(){
 
     uart_send(USART2, (uint8_t*)buffer, 10);
 		uart_send(USART1, (uint8_t*)buffer, 10);
-		delay(1000);
+		delay(100);
 		// send_data(joystick_get_x(), 0b010);
 
 		// delay(100);
