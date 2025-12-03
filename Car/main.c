@@ -3,7 +3,7 @@
 
 #include "uart.h"
 #include "stdio.h"
-//#include "receiver.h"
+#include "receiver.h"
 #include "motor.h"
 #include "delay.h"
 
@@ -13,64 +13,29 @@ int main(){
 	while ((RCC->CR & 0b1 << 10) == 0);
 	RCC->CFGR |= 1;
 	
-<<<<<<< HEAD
-	
-  // call motor function
-	motor_init(SystemCoreClock);
-	motor_set_speed(MOTOR_A, 400);   // 400 steps/s forward
-	motor_set_speed(MOTOR_B, -200);  // 200 steps/s reverse
+   // Example: motor input values
+    int8_t left_input = 50;   // forward at 50% speed
+    int8_t right_input = -75; // reverse at 75% speed
 
-/*
+    Motor_SetSpeed(MOTOR_LEFT, left_input);
+    Motor_SetSpeed(MOTOR_RIGHT, right_input);
+
+    // Setup SysTick for 1 kHz (1 ms tick)
+    SysTick->LOAD = 7999; // (8 MHz / 1000) - 1
+    SysTick->VAL = 0;
+    SysTick->CTRL = SysTick_CTRL_ENABLE_Msk | SysTick_CTRL_TICKINT_Msk | SysTick_CTRL_CLKSOURCE_Msk;
+
+
 	initialize_uart2();
-=======
-	// initialize motor
-	aMotor_Init();
 
 	// start the clock
 	RCC->AHB2ENR |= RCC_AHB2ENR_GPIOCEN;
 
+
 	// set PC9 as an output
 	GPIOC->MODER &= ~(0b11 << (9 * 2));
 	GPIOC->MODER |= 0b01 << (9 * 2);
-	bMotor_Init();
-	
-  // call motor function
-    // while (1)
-    // {
-	// 			aMotor_SetSpeed(6);    // CW, fast
-    //     for (volatile int i=0;i<2000000;i++);
 
-    //     aMotor_SetSpeed(-6);   // CCW, slower
-    //     for (volatile int i=0;i<2000000;i++);
-
-    //     aMotor_SetSpeed(0);    // Stop
-    //     for (volatile int i=0;i<2000000;i++);
-			
-	// 			bMotor_SetSpeed(6);    // CW, fast
-    //     for (volatile int i=0;i<2000000;i++);
-
-    //     bMotor_SetSpeed(-6);   // CCW, slower
-    //     for (volatile int i=0;i<2000000;i++);
-
-    //     bMotor_SetSpeed(0);    // Stop
-    //     for (volatile int i=0;i<2000000;i++);
-    // }
-  	// // call motor function
-    // while (1)
-    // {
-	// 			Motor_SetSpeed(6);    // CW, fast
-    //     for (volatile int i=0;i<2000000;i++);
-
-    //     Motor_SetSpeed(-6);   // CCW, slower
-    //     for (volatile int i=0;i<2000000;i++);
-
-    //     Motor_SetSpeed(0);    // Stop
-    //     for (volatile int i=0;i<2000000;i++);
-    // }
-
-
-	// initialize_uart2();
->>>>>>> c44b6465e44b1edf35de73f8734793635488b3f2
 	receiver_init();
 
 	while(1){
@@ -92,6 +57,6 @@ int main(){
 
 		delay(20);
 	}
-*/
+
 
 }
