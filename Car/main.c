@@ -3,7 +3,7 @@
 
 #include "uart.h"
 #include "stdio.h"
-#include "receiver.h"
+//#include "receiver.h"
 #include "motor.h"
 
 const uint8_t SOF[5] = {0xAA, 0x55, 0x12, 0x34, 0xF0};
@@ -15,48 +15,13 @@ int main(){
 	while ((RCC->CR & 0b1 << 10) == 0);
 	RCC->CFGR |= 1;
 	
-	// initialize motor
-	aMotor_Init();
-	bMotor_Init();
 	
-<<<<<<< HEAD
   // call motor function
-    while (1)
-    {
-				aMotor_SetSpeed(6);    // CW, fast
-        for (volatile int i=0;i<2000000;i++);
+	motor_init(SystemCoreClock);
+	motor_set_speed(MOTOR_A, 400);   // 400 steps/s forward
+	motor_set_speed(MOTOR_B, -200);  // 200 steps/s reverse
 
-        aMotor_SetSpeed(-6);   // CCW, slower
-        for (volatile int i=0;i<2000000;i++);
-
-        aMotor_SetSpeed(0);    // Stop
-        for (volatile int i=0;i<2000000;i++);
-			
-				bMotor_SetSpeed(6);    // CW, fast
-        for (volatile int i=0;i<2000000;i++);
-
-        bMotor_SetSpeed(-6);   // CCW, slower
-        for (volatile int i=0;i<2000000;i++);
-
-        bMotor_SetSpeed(0);    // Stop
-        for (volatile int i=0;i<2000000;i++);
-    }
-=======
-  	// // call motor function
-    // while (1)
-    // {
-	// 			Motor_SetSpeed(6);    // CW, fast
-    //     for (volatile int i=0;i<2000000;i++);
-
-    //     Motor_SetSpeed(-6);   // CCW, slower
-    //     for (volatile int i=0;i<2000000;i++);
-
-    //     Motor_SetSpeed(0);    // Stop
-    //     for (volatile int i=0;i<2000000;i++);
-    // }
->>>>>>> 672f5fea3c25475b0abb50bda2780dd3e228d8c4
-
-
+/*
 	initialize_uart2();
 	receiver_init();
 
@@ -74,4 +39,6 @@ int main(){
             // // ... handle other controls ...
         }
 	}
+*/
+
 }
