@@ -4,25 +4,26 @@
 #include "uart.h"
 #include "stdio.h"
 #include "receiver.h"
-#include "motor.h"
+//#include "motor.h"
 #include "delay.h"
+#include "turret.h"
 
 int main(){
 	// select HSI as main clock
 	RCC->CR |= 0b1 << 8;
 	while ((RCC->CR & 0b1 << 10) == 0);
 	RCC->CFGR |= 1;
-	
-	// initialize motor
-	aMotor_Init();
+//	
+//	// initialize motor
+//	aMotor_Init();
 
-	// start the clock
-	RCC->AHB2ENR |= RCC_AHB2ENR_GPIOCEN;
+//	// start the clock
+//	RCC->AHB2ENR |= RCC_AHB2ENR_GPIOCEN;
 
-	// set PC9 as an output
-	GPIOC->MODER &= ~(0b11 << (9 * 2));
-	GPIOC->MODER |= 0b01 << (9 * 2);
-	bMotor_Init();
+//	// set PC9 as an output
+//	GPIOC->MODER &= ~(0b11 << (9 * 2));
+//	GPIOC->MODER |= 0b01 << (9 * 2);
+//	bMotor_Init();
 	
   // call motor function
     // while (1)
@@ -61,6 +62,7 @@ int main(){
 
 	// initialize_uart2();
 	receiver_init();
+	turret_init();
 
 	while(1){
 		process_dma_buffer();
@@ -76,6 +78,11 @@ int main(){
 
 			if (!fire_btn){
 				GPIOC->ODR |= 1 << 9;
+			}
+
+			if (!joy_btn){
+				turret_set_x(LastPacket.tilt_x);
+				turret_set_y(LastPacket.tilt_y);
 			}
         }
 
