@@ -1,24 +1,26 @@
-#ifndef MOTOR_H
-#define MOTOR_H
-
 #include <stdint.h>
 
+// If the system clock is 16MHz, the timer update is set to 1kHz (1ms period).
+// This is the base tick for our speed calculation.
+//
+// The StepperMotor structure is refactored to handle variable speed:
+// - speed: Signed 8-bit value (-127 to 127). Sign determines direction.
+// - step_delay: The number of 1ms ticks between executing an actual step.
+// - step_counter: An accumulator that counts up to step_delay.
+
 typedef struct {
-    int32_t speed;       // signed speed: sign = direction, magnitude = speed (steps/sec)
-    uint8_t step_index;  // 0..7 half-step index
-    uint8_t pin_offset;  // 0 for PC0-3, 4 for PC4-7
+    int8_t speed;           // Signed speed (-127 to 127). Sign indicates direction.
+    uint8_t step_index;     // Current index in the step_sequence (0-3)
+    uint8_t pin_offset;     // GPIO Port C pin offset (0 for Motor A, 4 for Motor B)
+    int32_t step_delay;     // Delay (in 1ms timer ticks) between actual steps. 0 means stop.
+    int32_t step_counter;   // Accumulator for variable speed control.
 } StepperMotor;
 
-// Initialize GPIO + TIM2
+// Public function prototypes
 void Motor_Init(void);
-
-// Set signed speed for each motor
-// speed = 0 stops motor
-// speed > 0 = forward, speed < 0 = reverse
-void Motor_SetSpeedA(int32_t speed);
-void Motor_SetSpeedB(int32_t speed);
-
-// Internal update function (called by TIM2_IRQHandler)
 void Motor_Update(void);
+void Motor_SetSpeedA(int8_t speed);
+void Motor_SetSpeedB(int8_t speed);
 
-#endif
+// Interrupt handler (must be defined in the main C file)
+void TIM2_IRQHandler(void);

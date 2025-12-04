@@ -20,11 +20,11 @@ int32_t map_safe(int32_t x, int32_t in_min, int32_t in_max, int32_t out_min, int
 
 void gpio_init(){
     // enable the clock
-    RCC->AHB2ENR |= RCC_AHB2ENR_GPIOCEN;
+    RCC->AHB2ENR |= RCC_AHB2ENR_GPIOBEN;
 
-    // set PC0-7 as output
-    GPIOC->MODER &= ~0xFFFF;
-    GPIOC->MODER |= 0x5555;
+    // set PB0-7 as output
+    GPIOB->MODER &= ~0xFFFF;
+    GPIOB->MODER |= 0x5555;
 }
 
 void timer_6_init(){
@@ -76,7 +76,7 @@ void TIM6_DAC_IRQHandler(){
     if ((TIM6->SR & TIM_SR_UIF) != 0){
         TIM6->SR &= ~TIM_SR_UIF;
 
-        uint32_t odr = GPIOC->ODR;
+        uint32_t odr = GPIOB->ODR;
 
         // ---- X motor ----
         if (current_x > target_x) {
@@ -106,6 +106,6 @@ void TIM6_DAC_IRQHandler(){
         odr |= (step_table[y_step_pointer] & 0xF);
 
         // one safe write
-        GPIOC->ODR = odr;
+        GPIOB->ODR = odr;
     }
 }
