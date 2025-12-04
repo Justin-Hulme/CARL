@@ -1,12 +1,23 @@
 #ifndef MOTOR_H
 #define MOTOR_H
 
-#include "stm32l476xx.h"
+#include <stdint.h>
+#include <stdbool.h>
 
-void aMotor_Init(void);
-void aMotor_SetSpeed(int speed);  // signed: +CW, -CCW, 0=stop
+// Motor identifiers
+typedef enum {
+    MOTOR_LEFT,
+    MOTOR_RIGHT
+} Motor_t;
 
-void bMotor_Init(void);
-void bMotor_SetSpeed(int speed);  // signed: +CW, -CCW, 0=stop
+// Initialize motors (GPIO setup)
+void Motor_Init(void);
+
+// Set motor speed and direction
+// speed: -100 to +100 (negative = reverse, positive = forward)
+void Motor_SetSpeed(Motor_t motor, int8_t speed);
+
+// Call this function periodically (e.g., in SysTick or a timer interrupt)
+void Motor_Update(void);
 
 #endif

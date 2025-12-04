@@ -13,54 +13,30 @@ int main(){
 	RCC->CR |= 0b1 << 8;
 	while ((RCC->CR & 0b1 << 10) == 0);
 	RCC->CFGR |= 1;
-//	
-//	// initialize motor
-//	aMotor_Init();
+	
+   // Example: motor input values
+    int8_t left_input = 50;   // forward at 50% speed
+    int8_t right_input = -75; // reverse at 75% speed
+
+    Motor_SetSpeed(MOTOR_LEFT, left_input);
+    Motor_SetSpeed(MOTOR_RIGHT, right_input);
+
+    // Setup SysTick for 1 kHz (1 ms tick)
+    SysTick->LOAD = 7999; // (8 MHz / 1000) - 1
+    SysTick->VAL = 0;
+    SysTick->CTRL = SysTick_CTRL_ENABLE_Msk | SysTick_CTRL_TICKINT_Msk | SysTick_CTRL_CLKSOURCE_Msk;
+
+
+	initialize_uart2();
 
 //	// start the clock
 //	RCC->AHB2ENR |= RCC_AHB2ENR_GPIOCEN;
 
+
 //	// set PC9 as an output
 //	GPIOC->MODER &= ~(0b11 << (9 * 2));
 //	GPIOC->MODER |= 0b01 << (9 * 2);
-//	bMotor_Init();
-	
-  // call motor function
-    // while (1)
-    // {
-	// 			aMotor_SetSpeed(6);    // CW, fast
-    //     for (volatile int i=0;i<2000000;i++);
-
-    //     aMotor_SetSpeed(-6);   // CCW, slower
-    //     for (volatile int i=0;i<2000000;i++);
-
-    //     aMotor_SetSpeed(0);    // Stop
-    //     for (volatile int i=0;i<2000000;i++);
-			
-	// 			bMotor_SetSpeed(6);    // CW, fast
-    //     for (volatile int i=0;i<2000000;i++);
-
-    //     bMotor_SetSpeed(-6);   // CCW, slower
-    //     for (volatile int i=0;i<2000000;i++);
-
-    //     bMotor_SetSpeed(0);    // Stop
-    //     for (volatile int i=0;i<2000000;i++);
-    // }
-  	// // call motor function
-    // while (1)
-    // {
-	// 			Motor_SetSpeed(6);    // CW, fast
-    //     for (volatile int i=0;i<2000000;i++);
-
-    //     Motor_SetSpeed(-6);   // CCW, slower
-    //     for (volatile int i=0;i<2000000;i++);
-
-    //     Motor_SetSpeed(0);    // Stop
-    //     for (volatile int i=0;i<2000000;i++);
-    // }
-
-
-	// initialize_uart2();
+//
 	receiver_init();
 	turret_init();
 
@@ -88,4 +64,6 @@ int main(){
 
 		delay(20);
 	}
+
+
 }
