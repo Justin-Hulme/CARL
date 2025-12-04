@@ -1,4 +1,7 @@
 #include "stm32l476xx.h"
+<<<<<<< HEAD
+#include "motor.h"
+=======
 #include "stdbool.h"
 
 #include "uart.h"
@@ -7,6 +10,24 @@
 #include "motor.h"
 #include "delay.h"
 #include "turret.h"
+>>>>>>> cedd7a989876d829aacb55eecfdbfca53b4eca1d
+
+void SystemClock_Config(void);
+
+int main(void)
+{
+    SystemClock_Config();
+    Motor_Init();
+
+<<<<<<< HEAD
+    // Example inputs
+    int32_t speedA = 200;   // +200 = forward, 200 steps/sec
+    int32_t speedB = 200;  // -150 = backward, 150 steps/sec
+=======
+    // Setup SysTick for 1 kHz (1 ms tick)
+    SysTick->LOAD = 7999; // (8 MHz / 1000) - 1
+    SysTick->VAL = 0;
+    SysTick->CTRL = SysTick_CTRL_ENABLE_Msk | SysTick_CTRL_TICKINT_Msk | SysTick_CTRL_CLKSOURCE_Msk;
 
 int main(){
 	// select HSI as main clock
@@ -64,6 +85,36 @@ int main(){
 
 		delay(20);
 	}
+>>>>>>> cedd7a989876d829aacb55eecfdbfca53b4eca1d
 
+    Motor_SetSpeedA(speedA);
+    Motor_SetSpeedB(speedB);
 
+    while (1)
+    {
+        // You can dynamically update speeds:
+        // Motor_SetSpeedA(new_value);
+        // Motor_SetSpeedB(new_value);
+    }
+}
+
+//----------------------------------------------------
+// Minimal system clock config (80 MHz)
+//----------------------------------------------------
+void SystemClock_Config(void)
+{
+    // Enable HSI (16 MHz)
+    RCC->CR |= RCC_CR_HSION;
+    while (!(RCC->CR & RCC_CR_HSIRDY));
+
+    // Configure PLL for 80 MHz
+    RCC->PLLCFGR = (1 << 24)        // PLLR = /2
+                 | (10 << 8)        // PLLN = 10
+                 | (1 << 0);        // PLLSRC = HSI
+
+    RCC->CR |= RCC_CR_PLLON;
+    while (!(RCC->CR & RCC_CR_PLLRDY));
+
+    RCC->CFGR |= RCC_CFGR_SW_PLL;
+    while ((RCC->CFGR & RCC_CFGR_SWS) != RCC_CFGR_SWS_PLL);
 }
