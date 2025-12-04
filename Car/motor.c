@@ -1,93 +1,110 @@
 #include "motor.h"
 #include "stm32l476xx.h"
 
-// GPIO port for motors
-#define MOTOR_PORT GPIOC
-
-// Half-step sequence (8 steps)
-static const uint8_t step_sequence[8] = {
-    0b0001,
-    0b0011,
-    0b0010,
-    0b0110,
-    0b0100,
-    0b1100,
+// Half-step sequence for 28BYJ-48
+static const uint8_t step_sequence[4] = {
     0b1000,
-    0b1001
+    0b0100,
+    0b0010,
+    0b0001
 };
 
-// Motor state
-typedef struct {
-    int8_t speed;      // -100 to 100
-    uint8_t step_idx;  // 0-7
-    uint16_t pin_mask; // GPIO pins used
-    uint32_t counter;  // step delay counter
-} MotorState;
+static StepperMotor motorA = {0, 0, 0};  // PC0-PC3
+static StepperMotor motorB = {0, 0, 4};  // PC4-PC7
 
-static MotorState motors[2];
+//----------------------------------------------------
+// Write output pattern for one motor
+//----------------------------------------------------
+static void Motor_Write(StepperMotor *m, uint8_t pattern)
+{
+    uint32_t mask = 0x0F << m->pin_offset;     // target nibble (4 bits)
+    uint32_t shifted = ((uint32_t)pattern << m->pin_offset);
 
-// Step delay table (speed -> delay ticks)
-static uint32_t speed_to_delay(int8_t speed) {
-    if (speed == 0) return 0xFFFFFFFF; // effectively stop
-    uint8_t abs_speed = (speed > 0) ? speed : -speed;
-    // Map 1-100 -> 1000 - 10 ticks (adjust as needed)
-    return 1000 - (abs_speed * 9);
+    GPIOC->ODR = (GPIOC->ODR & ~mask) | shifted;
 }
 
-// Initialize GPIO pins for motors
-void Motor_Init(void) {
-    // Enable GPIOC clock
+//----------------------------------------------------
+// Update motor (called each timer tick)
+//----------------------------------------------------
+static void Motor_Step(StepperMotor *m)
+{
+    if (m->speed == 0)
+        return;
+		
+		int32_t actualSpeed = m->speed;
+		
+		if (m->pin_offset == 4) {
+			actualSpeed = -actualSpeed;
+		}
+
+    if (actualSpeed > 0) {
+        m->step_index = (m->step_index + 1) & 0x03;
+    } else {
+        m->step_index = (m->step_index + 3) & 0x03; // reverse direction
+    }
+
+    Motor_Write(m, step_sequence[m->step_index]);
+}
+
+//----------------------------------------------------
+// Public function: Called by TIM2 interrupt
+//----------------------------------------------------
+void Motor_Update(void)
+{
+    Motor_Step(&motorA);
+    Motor_Step(&motorB);
+}
+
+//----------------------------------------------------
+// Set speed for Motor A
+//----------------------------------------------------
+void Motor_SetSpeedA(int32_t speed)
+{
+    motorA.speed = speed;
+}
+
+//----------------------------------------------------
+// Set speed for Motor B
+//----------------------------------------------------
+void Motor_SetSpeedB(int32_t speed)
+{
+    motorB.speed = speed;
+}
+
+//----------------------------------------------------
+// Init GPIOC + Timer2
+//----------------------------------------------------
+void Motor_Init(void)
+{
+    // Enable GPIOC
     RCC->AHB2ENR |= RCC_AHB2ENR_GPIOCEN;
 
-    // Set PC0-PC7 as output
-    MOTOR_PORT->MODER &= ~0xFFFFFFFF;       // clear
-    MOTOR_PORT->MODER |= 0x55555555;        // set output
+    // Set PC0-PC7 as outputs
+    GPIOC->MODER &= ~(0xFFFF);
+    GPIOC->MODER |=  (0x5555);   // all output mode
 
-    // Initialize motor states
-    motors[MOTOR_LEFT].speed = 0;
-    motors[MOTOR_LEFT].step_idx = 0;
-    motors[MOTOR_LEFT].pin_mask = 0x000F;  // PC0-PC3
-    motors[MOTOR_LEFT].counter = 0;
+    // Enable TIM2 clock
+    RCC->APB1ENR1 |= RCC_APB1ENR1_TIM2EN;
 
-    motors[MOTOR_RIGHT].speed = 0;
-    motors[MOTOR_RIGHT].step_idx = 0;
-    motors[MOTOR_RIGHT].pin_mask = 0x00F0; // PC4-PC7
-    motors[MOTOR_RIGHT].counter = 0;
+    // Timer tick: 1 kHz update interrupt
+    // TIM2 clock is 80 MHz
+    TIM2->PSC = 3999;     // 80 MHz / 8000 = 10 kHz
+    TIM2->ARR = 10 - 1;   // 10 kHz / 10 = 1 kHz interrupt
+
+    TIM2->DIER |= TIM_DIER_UIE;  // update interrupt enable
+    TIM2->CR1  |= TIM_CR1_CEN;   // enable timer
+
+    NVIC_EnableIRQ(TIM2_IRQn);
 }
 
-// Set motor speed
-void Motor_SetSpeed(Motor_t motor, int8_t speed) {
-    if (speed > 100) speed = 100;
-    if (speed < -100) speed = -100;
-    motors[motor].speed = speed;
-}
-
-// Update motor steps (call periodically)
-void Motor_Update(void) {
-    for (int m = 0; m < 2; m++) {
-        MotorState *motor = &motors[m];
-        if (motor->speed == 0) continue;
-
-        if (motor->counter == 0) {
-            // Update step index
-            if (motor->speed > 0) {
-                motor->step_idx = (motor->step_idx + 1) % 8;
-            } else {
-                motor->step_idx = (motor->step_idx + 7) % 8;
-            }
-
-            // Write pins
-            uint8_t seq = step_sequence[motor->step_idx];
-            if (m == MOTOR_LEFT) {
-                MOTOR_PORT->ODR = (MOTOR_PORT->ODR & ~0xF) | seq;
-            } else {
-                MOTOR_PORT->ODR = (MOTOR_PORT->ODR & ~0xF0) | (seq << 4);
-            }
-
-            // Reload counter
-            motor->counter = speed_to_delay(motor->speed);
-        } else {
-            motor->counter--;
-        }
+//----------------------------------------------------
+// Interrupt handler
+//----------------------------------------------------
+void TIM2_IRQHandler(void)
+{
+    if (TIM2->SR & TIM_SR_UIF)
+    {
+        TIM2->SR &= ~TIM_SR_UIF;
+        Motor_Update();
     }
 }
