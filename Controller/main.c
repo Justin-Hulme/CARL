@@ -15,9 +15,9 @@ void System_Clock_Init(void) {
 	RCC->CFGR |= 1;
 }
 
-//int32_t map_int(int32_t x, int32_t in_min, int32_t in_max, int32_t out_min, int32_t out_max){
-//    return (x - in_min) * (out_max - out_min) / (in_max - in_min) + out_min;
-//}
+int32_t map_int(int32_t x, int32_t in_min, int32_t in_max, int32_t out_min, int32_t out_max){
+   return (x - in_min) * (out_max - out_min) / (in_max - in_min) + out_min;
+}
 
 
 int main(void){
@@ -44,6 +44,9 @@ int main(void){
 	while (1){
 		Accelerometer_Read_Values(&accel_x, &accel_y, &accel_z);
 
+		uint8_t accel_x_send = (accel_x >> 7) + 128;
+		uint8_t accel_y_send = (accel_y >> 7) + 128;
+
 		uint8_t buffer[10] = {
 			0xAA,
 			0x55,
@@ -52,8 +55,8 @@ int main(void){
 			0xF0,
 			joystick_get_x(), 
 			joystick_get_y(),
-			accel_x >> 8,
-			accel_y >> 8,
+			accel_x_send,
+			accel_y_send,
 			GPIOC->IDR & 0b11
 		};
 

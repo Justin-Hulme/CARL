@@ -65,23 +65,47 @@ void turret_init(){
 }
 
 void turret_set_x(uint8_t value){
-    target_x = map_safe(value, 0, 255, 0, STEPPER_X_MAX);
+    target_x = map_safe(value - 128, -128, 127, 0, STEPPER_X_MAX);
 }
 
 void turret_set_y(uint8_t value){
-    target_x = map_safe(value, 0, 255, 0, STEPPER_Y_MAX);
+    target_y = map_safe(value, 0, 255, 0, STEPPER_Y_MAX);
 }
 
 void TIM6_DAC_IRQHandler(){
     if ((TIM6->SR & TIM_SR_UIF) != 0){
         TIM6->SR &= ~TIM_SR_UIF;
 
-        GPIOC->ODR &= ~0xFF;
-        GPIOC->ODR |= (step_table[x_step_pointer] << 4) | step_table[y_step_pointer]; 
+        uint32_t odr = GPIOC->ODR;
 
-        x_step_pointer ++;
-        x_step_pointer %= 4;
-        y_step_pointer ++;
-        y_step_pointer %= 4;
+        // ---- X motor ----
+        if (current_x > target_x) {
+            x_step_pointer = (x_step_pointer - 1) & 3;
+            current_x--;
+        } else if (current_x < target_x) {
+            x_step_pointer = (x_step_pointer + 1) & 3;
+            current_x++;
+        }
+
+        // update X nibble
+        odr &= ~(0xF << 4);
+        odr |= (step_table[x_step_pointer] & 0xF) << 4;
+
+
+        // ---- Y motor ----
+        if (current_y > target_y) {
+            y_step_pointer = (y_step_pointer - 1) & 3;
+            current_y--;
+        } else if (current_y < target_y) {
+            y_step_pointer = (y_step_pointer + 1) & 3;
+            current_y++;
+        }
+
+        // update Y nibble
+        odr &= ~0x0F;
+        odr |= (step_table[y_step_pointer] & 0xF);
+
+        // one safe write
+        GPIOC->ODR = odr;
     }
 }

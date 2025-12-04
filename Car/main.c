@@ -4,7 +4,7 @@
 #include "uart.h"
 #include "stdio.h"
 #include "receiver.h"
-//#include "motor.h"
+#include "motor.h"
 #include "delay.h"
 #include "turret.h"
 
@@ -14,29 +14,29 @@ int main(){
 	while ((RCC->CR & 0b1 << 10) == 0);
 	RCC->CFGR |= 1;
 	
-   // Example: motor input values
-    int8_t left_input = 50;   // forward at 50% speed
-    int8_t right_input = -75; // reverse at 75% speed
+//    // Example: motor input values
+//     int8_t left_input = 50;   // forward at 50% speed
+//     int8_t right_input = -75; // reverse at 75% speed
 
-    Motor_SetSpeed(MOTOR_LEFT, left_input);
-    Motor_SetSpeed(MOTOR_RIGHT, right_input);
+//     Motor_SetSpeed(MOTOR_LEFT, left_input);
+//     Motor_SetSpeed(MOTOR_RIGHT, right_input);
 
-    // Setup SysTick for 1 kHz (1 ms tick)
-    SysTick->LOAD = 7999; // (8 MHz / 1000) - 1
-    SysTick->VAL = 0;
-    SysTick->CTRL = SysTick_CTRL_ENABLE_Msk | SysTick_CTRL_TICKINT_Msk | SysTick_CTRL_CLKSOURCE_Msk;
-
-
-	initialize_uart2();
-
-//	// start the clock
-//	RCC->AHB2ENR |= RCC_AHB2ENR_GPIOCEN;
+//     // Setup SysTick for 1 kHz (1 ms tick)
+//     SysTick->LOAD = 7999; // (8 MHz / 1000) - 1
+//     SysTick->VAL = 0;
+//     SysTick->CTRL = SysTick_CTRL_ENABLE_Msk | SysTick_CTRL_TICKINT_Msk | SysTick_CTRL_CLKSOURCE_Msk;
 
 
-//	// set PC9 as an output
-//	GPIOC->MODER &= ~(0b11 << (9 * 2));
-//	GPIOC->MODER |= 0b01 << (9 * 2);
-//
+// 	initialize_uart2();
+
+	// start the clock
+	RCC->AHB2ENR |= RCC_AHB2ENR_GPIOCEN;
+
+
+	// set PC9 as an output
+	GPIOC->MODER &= ~(0b11 << (9 * 2));
+	GPIOC->MODER |= 0b01 << (9 * 2);
+
 	receiver_init();
 	turret_init();
 
