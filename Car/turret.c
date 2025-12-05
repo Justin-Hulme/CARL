@@ -33,7 +33,7 @@ void timer_6_init(){
 
     // set to trigger every 10ms
     TIM6->PSC = 1999; // prescale to 1600Hz
-    TIM6->ARR = 15-1; // set the ARR to the fastest speed
+    TIM6->ARR = 20-1; // set the ARR to the fastest speed
 
     // clear the count
     TIM6->CNT &= ~0xFFFF;
