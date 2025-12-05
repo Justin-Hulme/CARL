@@ -2,11 +2,11 @@
 
 volatile uint8_t step_table[4];
 
-volatile uint32_t target_x;
+volatile int8_t x_direction;
 volatile uint32_t current_x;
 volatile uint8_t x_step_pointer;
 
-volatile uint32_t target_y;
+volatile int8_t y_direction;
 volatile uint32_t current_y;
 volatile uint8_t y_step_pointer;
 
@@ -50,9 +50,9 @@ void timer_6_init(){
 }
 
 void turret_init(){
-    target_x = 0;
+    x_direction = 0;
     current_x = 0;
-    target_y = 0;
+    x_direction = 0;
     current_y = 0;
 
     step_table[0] = 0b1000;
@@ -64,13 +64,44 @@ void turret_init(){
     timer_6_init();
 }
 
-void turret_set_x(uint8_t value){
-    target_x = map_safe(value - 128, -128, 127, 0, STEPPER_X_MAX);
+void turret_set_x(uint8_t value)
+{
+    if (value < 64) {
+        if (current_x > 0)
+            x_direction = -1;
+        else
+            x_direction = 0;    // at boundary, prevent movement
+    }
+    else if (value > 192) {
+        if (current_x < STEPPER_X_MAX)
+            x_direction = 1;
+        else
+            x_direction = 0;
+    }
+    else {
+        x_direction = 0;
+    }
 }
 
-void turret_set_y(uint8_t value){
-    target_y = map_safe(value, 0, 255, 0, STEPPER_Y_MAX);
+void turret_set_y(uint8_t value)
+{
+    if (value < 64) {
+        if (current_y > 0)
+            y_direction = -1;
+        else
+            y_direction = 0;
+    }
+    else if (value > 192) {
+        if (current_y < STEPPER_Y_MAX)
+            y_direction = 1;
+        else
+            y_direction = 0;
+    }
+    else {
+        y_direction = 0;
+    }
 }
+
 
 void TIM6_DAC_IRQHandler(){
     if ((TIM6->SR & TIM_SR_UIF) != 0){
@@ -78,13 +109,24 @@ void TIM6_DAC_IRQHandler(){
 
         uint32_t odr = GPIOB->ODR;
 
-        // ---- X motor ----
-        if (current_x > target_x) {
-            x_step_pointer = (x_step_pointer - 1) & 3;
-            current_x--;
-        } else if (current_x < target_x) {
-            x_step_pointer = (x_step_pointer + 1) & 3;
-            current_x++;
+        // // ---- X motor ----
+        // if (current_x > target_x) {
+        //     x_step_pointer = (x_step_pointer - 1) & 3;
+        //     current_x--;
+        // } else if (current_x < target_x) {
+        //     x_step_pointer = (x_step_pointer + 1) & 3;
+        //     current_x++;
+        // }
+
+        if ((x_direction < 0 && current_x > 0) || (x_direction > 0 && current_x < STEPPER_X_MAX))
+        {
+            x_step_pointer = (x_step_pointer + x_direction) & 3;
+            current_x += x_direction;
+        }
+        else
+        {
+            // safety: force stop if we reached the limit unexpectedly
+            x_direction = 0;
         }
 
         // update X nibble
@@ -92,13 +134,23 @@ void TIM6_DAC_IRQHandler(){
         odr |= (step_table[x_step_pointer] & 0xF) << 4;
 
 
-        // ---- Y motor ----
-        if (current_y > target_y) {
-            y_step_pointer = (y_step_pointer - 1) & 3;
-            current_y--;
-        } else if (current_y < target_y) {
-            y_step_pointer = (y_step_pointer + 1) & 3;
-            current_y++;
+        // // ---- Y motor ----
+        // if (current_y > target_y) {
+        //     y_step_pointer = (y_step_pointer - 1) & 3;
+        //     current_y--;
+        // } else if (current_y < target_y) {
+        //     y_step_pointer = (y_step_pointer + 1) & 3;
+        //     current_y++;
+        // }
+
+        if ((y_direction < 0 && current_y > 0) || (y_direction > 0 && current_y < STEPPER_Y_MAX))
+        {
+            y_step_pointer = (y_step_pointer + y_direction) & 3;
+            current_y += y_direction;
+        }
+        else
+        {
+            y_direction = 0;
         }
 
         // update Y nibble

@@ -8,6 +8,7 @@
 #include "delay.h"
 #include "motor.h"
 #include "turret.h"
+#include "tests.h"
 
 // void SystemClock_Config(void);
 
@@ -38,6 +39,7 @@ int main(){
 	receiver_init();
 	turret_init();
 	Motor_Init();
+	test_init();
 
 	while(1){
 		process_dma_buffer();
@@ -59,63 +61,68 @@ int main(){
 				turret_set_x(LastPacket.tilt_x);
 				turret_set_y(LastPacket.tilt_y);
 			}
+			else {
+				turret_set_x(128);
+				turret_set_y(128);
 
-			// create a local copy so that we can add a dead zone. 16 to allow better math
-			int16_t local_joy_x = LastPacket.joy_x - 128;
-			int16_t local_joy_y = LastPacket.joy_y - 128;
+				// create a local copy so that we can add a dead zone. 16 to allow better math
+				int16_t local_joy_x = LastPacket.joy_x - 128;
+				int16_t local_joy_y = LastPacket.joy_y - 128;
 
-			// prevent -128 because it does not play nice with the abs function
-			if (local_joy_x == -128){
-				local_joy_x = -127;
-			}
+				// prevent -128 because it does not play nice with the abs function
+				if (local_joy_x == -128){
+					local_joy_x = -127;
+				}
 
-			if (local_joy_y == -128){
-				local_joy_y = -127;
-			}
+				if (local_joy_y == -128){
+					local_joy_y = -127;
+				}
 
-			if (abs(local_joy_x) < 10){
-				local_joy_x = 0;
-			}
+				if (abs(local_joy_x) < 10){
+					local_joy_x = 0;
+				}
 
-			if (abs(local_joy_y) < 10){
-				local_joy_y = 0;
-			}
+				if (abs(local_joy_y) < 10){
+					local_joy_y = 0;
+				}
 
-			int8_t motorA_speed;
-			
-			// clamp the value
-			if (abs(local_joy_y - local_joy_x) > 127){
-				if (local_joy_y - local_joy_x > 0){
-					motorA_speed = 127;
+				int8_t motorA_speed;
+				
+				// clamp the value
+				if (abs(local_joy_y - local_joy_x) > 127){
+					if (local_joy_y - local_joy_x > 0){
+						motorA_speed = 127;
+					}
+					else{
+						motorA_speed = -127;
+					}
 				}
 				else{
-					motorA_speed = -127;
+					motorA_speed = local_joy_y - local_joy_x;
 				}
-			}
-			else{
-				motorA_speed = local_joy_y - local_joy_x;
-			}
 
-			int8_t motorB_speed;
-			
-			// clamp the value
-			if (abs(local_joy_y + local_joy_x) > 127){
-				if (local_joy_y + local_joy_x > 0){
-					motorB_speed = 127;
+				int8_t motorB_speed;
+				
+				// clamp the value
+				if (abs(local_joy_y + local_joy_x) > 127){
+					if (local_joy_y + local_joy_x > 0){
+						motorB_speed = 127;
+					}
+					else{
+						motorB_speed = -127;
+					}
 				}
 				else{
-					motorB_speed = -127;
+					motorB_speed = local_joy_y + local_joy_x;
 				}
-			}
-			else{
-				motorB_speed = local_joy_y + local_joy_x;
-			}
 
-			Motor_SetSpeedA(motorA_speed);
-    		Motor_SetSpeedB(motorB_speed);
+				Motor_SetSpeedA(motorA_speed);
+				Motor_SetSpeedB(motorB_speed);
+			}
         }
 
 		delay(20);
+		mark_loop();
 	}
 }
 

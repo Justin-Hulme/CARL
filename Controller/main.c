@@ -4,6 +4,7 @@
 #include "transmitter.h"
 #include "joystick.h"
 #include "delay.h"
+#include "tests.h"
 
 #include "stdio.h"
 #include "string.h" // Added to use strlen()
@@ -27,6 +28,7 @@ int main(void){
 	transmitter_init();
 	joystick_init();
 	Accelerometer_Init();
+	test_init();
 
 	// enable the clock
 	RCC->AHB2ENR |= RCC_AHB2ENR_GPIOCEN;
@@ -43,6 +45,7 @@ int main(void){
 
 	while (1){
 		Accelerometer_Read_Values(&accel_x, &accel_y, &accel_z);
+		mark_accel();
 
 		uint8_t accel_x_send = (accel_x >> 7) + 128;
 		uint8_t accel_y_send = (accel_y >> 7) + 128;
@@ -62,6 +65,7 @@ int main(void){
 
 		//uart_send(USART2, (uint8_t*)buffer, 10);
 		uart_send(USART1, (uint8_t*)buffer, 10);
+		mark_sent();
 
 		// snprintf(buffer2, 50, "X: %d, Y: %d, Z: %d\r\n", accel_x >> 8, accel_y >> 8, accel_z >> 8);
 		// uart_send(USART2, (uint8_t*)buffer2, strlen(buffer2));

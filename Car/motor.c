@@ -4,10 +4,10 @@
 
 // Half-step sequence for 28BYJ-48
 static const uint8_t step_sequence[4] = {
-    0b1000, // Coil 1 On
-    0b0100, // Coil 2 On
-    0b0010, // Coil 3 On
-    0b0001  // Coil 4 On
+    0b1100, // Coil 1 On
+    0b0110, // Coil 2 On
+    0b0011, // Coil 3 On
+    0b1001  // Coil 4 On
 };
 
 // Global motor structures are initialized independently
@@ -161,11 +161,11 @@ void Motor_Init(void)
     // Timer clock is 16 MHz
     // Set Prescaler (PSC + 1 = 16) -> PSC = 15
     // Counter clock = 16 MHz / 16 = 1 MHz (1us period)
-    TIM2->PSC = 15;
+    TIM2->PSC = 1999; // prescale to 1600Hz
 
     // Set Auto-Reload Register (ARR + 1 = 1000) -> ARR = 999
     // Interrupt frequency = 1 MHz / 1000 = 1 kHz (1ms period)
-    TIM2->ARR = 999;
+    TIM2->ARR = 8-1; // set the ARR to the fastest speed
 
     // Clear timer counter to start fresh
     TIM2->CNT = 0;
