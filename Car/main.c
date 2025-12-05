@@ -1,6 +1,6 @@
 #include "stm32l476xx.h"
 #include "stdbool.h"
-#include <stdlib.h> // For abs() function
+#include <stdlib.h>
 
 #include "uart.h"
 #include "stdio.h"
@@ -17,17 +17,6 @@ int main(){
 	RCC->CR |= 0b1 << 8;
 	while ((RCC->CR & 0b1 << 10) == 0);
 	RCC->CFGR |= 1;
-	
-	// SystemClock_Config();
-    // Motor_Init();
-
-    // // Example inputs
-    // int32_t speedA = 200;   // +200 = forward, 200 steps/sec
-    // int32_t speedB = 200;  // -150 = backward, 150 steps/sec
-    // // Setup SysTick for 1 kHz (1 ms tick)
-    // SysTick->LOAD = 7999; // (8 MHz / 1000) - 1
-    // SysTick->VAL = 0;
-    // SysTick->CTRL = SysTick_CTRL_ENABLE_Msk | SysTick_CTRL_TICKINT_Msk | SysTick_CTRL_CLKSOURCE_Msk;
 
 	// start the clock
 	RCC->AHB2ENR |= RCC_AHB2ENR_GPIOCEN;
@@ -50,10 +39,11 @@ int main(){
 			bool fire_btn = (LastPacket.buttons & 1);
 			bool joy_btn = ((LastPacket.buttons >> 1) & 1);
 
-
+			// clear the ODR
 			GPIOC->ODR &= ~(0b1 << 9);
 
 			if (!fire_btn){
+				// set the laser pin
 				GPIOC->ODR |= 1 << 9;
 			}
 
@@ -73,15 +63,14 @@ int main(){
 				if (local_joy_x == -128){
 					local_joy_x = -127;
 				}
-
 				if (local_joy_y == -128){
 					local_joy_y = -127;
 				}
 
+				// add a dead zone to the joystick
 				if (abs(local_joy_x) < 10){
 					local_joy_x = 0;
 				}
-
 				if (abs(local_joy_y) < 10){
 					local_joy_y = 0;
 				}
@@ -125,24 +114,3 @@ int main(){
 		mark_loop();
 	}
 }
-
-//----------------------------------------------------
-// Minimal system clock config (80 MHz)
-//----------------------------------------------------
-// void SystemClock_Config(void)
-// {
-//     // Enable HSI (16 MHz)
-//     RCC->CR |= RCC_CR_HSION;
-//     while (!(RCC->CR & RCC_CR_HSIRDY));
-
-//     // Configure PLL for 80 MHz
-//     RCC->PLLCFGR = (1 << 24)        // PLLR = /2
-//                  | (10 << 8)        // PLLN = 10
-//                  | (1 << 0);        // PLLSRC = HSI
-
-//     RCC->CR |= RCC_CR_PLLON;
-//     while (!(RCC->CR & RCC_CR_PLLRDY));
-
-//     RCC->CFGR |= RCC_CFGR_SW_PLL;
-//     while ((RCC->CFGR & RCC_CFGR_SWS) != RCC_CFGR_SWS_PLL);
-// }

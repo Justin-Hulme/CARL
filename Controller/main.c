@@ -22,13 +22,14 @@ int32_t map_int(int32_t x, int32_t in_min, int32_t in_max, int32_t out_min, int3
 
 
 int main(void){
-    // 1. Initialize System Clock to HSI (16 MHz) first
     System_Clock_Init();
 	initialize_uart2();
 	transmitter_init();
 	joystick_init();
 	Accelerometer_Init();
 	test_init();
+
+	// set up buttons
 
 	// enable the clock
 	RCC->AHB2ENR |= RCC_AHB2ENR_GPIOCEN;
@@ -41,7 +42,6 @@ int main(void){
 	GPIOC->PUPDR |= 0b0101;
 
 	int16_t accel_x, accel_y, accel_z;
-	// char buffer2[50];
 
 	while (1){
 		Accelerometer_Read_Values(&accel_x, &accel_y, &accel_z);
@@ -63,54 +63,9 @@ int main(void){
 			GPIOC->IDR & 0b11
 		};
 
-		//uart_send(USART2, (uint8_t*)buffer, 10);
 		uart_send(USART1, (uint8_t*)buffer, 10);
 		mark_sent();
-
-		// snprintf(buffer2, 50, "X: %d, Y: %d, Z: %d\r\n", accel_x >> 8, accel_y >> 8, accel_z >> 8);
-		// uart_send(USART2, (uint8_t*)buffer2, strlen(buffer2));
 		
 		delay(20);
-		// send_data(joystick_get_x(), 0b010);
-
-		// delay(100);
-
-		// send_data(joystick_get_y(), 0b011);
-		
-		// delay(100);
-		// int number = uart_read_number(USART2);
-		
-		// uint8_t data = number & 0b11111111;
-		// uint8_t tag = number >> 8;
-
-    	// send_data(data, tag);
-		// char string[100];
-
-		// int bytes_to_write = sprintf(string, "\rx: %4d, y: %4d\n", get_x()-128, get_y()-128);
-
-        // uart_send(USART2, (uint8_t*)string, bytes_to_write);
 	}
 }
-
-    
-    // 3. Initialize Accelerometer (Configures I2C internally)
-    
-    
-    // int16_t x, y, z;
-    // char buffer[50];
-
-    // while (1){
-    //     // Read values
-    //     Accelerometer_Read_Values(&x, &y, &z);
-        
-    //     // Format string
-    //     snprintf(buffer, 50, "X: %d, Y: %d, Z: %d\r\n", x, y, z);
-        
-    //     // Send to UART using the new API
-    //     // uart_send takes the USART instance, the buffer cast to uint8_t*, and the length
-    //     uart_send(USART2, (uint8_t*)buffer, strlen(buffer));
-        
-    //     // Simple delay loop 
-    //     for(int i = 0; i < 20000; i++);
-    // }
-//}
