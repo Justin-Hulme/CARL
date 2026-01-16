@@ -2,12 +2,12 @@
 #include "stm32l476xx.h"
 #include <stdlib.h> // For abs() function
 
-// Half-step sequence for 28BYJ-48
+// Full-step sequence for 28BYJ-48
 static const uint8_t step_sequence[4] = {
-    0b1100, // Coil 1 On
-    0b0110, // Coil 2 On
-    0b0011, // Coil 3 On
-    0b1001  // Coil 4 On
+    0b1100, // Coil 1 & 2 On
+    0b0110, // Coil 2 & 3 On
+    0b0011, // Coil 3 & 4 On
+    0b1001  // Coil 4 & 1 On
 };
 
 // Global motor structures are initialized independently
@@ -17,9 +17,7 @@ static StepperMotor motorB; // = {0, 0, 4, 0, 0};  // PC4-PC7
 // Maximum delay for the slowest speed (speed |1|) in milliseconds.
 #define MAX_TICK_DELAY 128*2
 
-//----------------------------------------------------
 // Write output pattern for one motor
-//----------------------------------------------------
 static void Motor_Write(StepperMotor *m, uint8_t pattern)
 {
     // The mask targets 4 bits (a nibble) starting at the motor's pin_offset
@@ -31,9 +29,7 @@ static void Motor_Write(StepperMotor *m, uint8_t pattern)
     GPIOC->ODR = (GPIOC->ODR & ~mask) | shifted_pattern;
 }
 
-//----------------------------------------------------
 // Calculate the step delay based on signed speed
-//----------------------------------------------------
 static void Motor_CalculateDelay(StepperMotor *m)
 {
     // Get absolute speed magnitude
@@ -46,7 +42,6 @@ static void Motor_CalculateDelay(StepperMotor *m)
     } else {
         // Calculate delay (in ms) inversely proportional to speed magnitude.
         // The result is the number of 1ms ticks needed between steps.
-        // Example: |Speed|=127 -> delay = (128/127) + 1 = 2 ticks (fastest)
         m->step_delay = (MAX_TICK_DELAY / speed_mag) + 1;
         
         // Reset the counter if it's over the new delay to prevent an immediate step 
@@ -57,10 +52,8 @@ static void Motor_CalculateDelay(StepperMotor *m)
     }
 }
 
-//----------------------------------------------------
 // Update motor (called each 1ms timer tick)
 // Handles stepping and direction for a single motor (m).
-//----------------------------------------------------
 static void Motor_Step(StepperMotor *m)
 {
     // If delay is 0 (speed=0), the motor is stopped.
@@ -78,12 +71,6 @@ static void Motor_Step(StepperMotor *m)
         // Determine step direction based on motor speed sign
         int8_t step_increment = (m->speed > 0) ? 1 : -1;
 
-        // If motor B is wired for reverse movement, we flip its step direction
-        // so positive speed means "forward" for both.
-        // if (m->pin_offset == 4) {
-        //     step_increment = -step_increment;
-        // }
-
         // Update step index (0-3) using modulo arithmetic
         if (step_increment > 0) {
             // Forward step
@@ -98,9 +85,7 @@ static void Motor_Step(StepperMotor *m)
     }
 }
 
-//----------------------------------------------------
 // Public function: Called by TIM2 interrupt
-//----------------------------------------------------
 void Motor_Update(void)
 {
     // Both motors are stepped independently based on their unique states (step_delay, step_counter)
@@ -108,27 +93,21 @@ void Motor_Update(void)
     Motor_Step(&motorB);
 }
 
-//----------------------------------------------------
 // Set speed for Motor A (accepts int8_t)
-//----------------------------------------------------
 void Motor_SetSpeedA(int8_t speed)
 {
     motorA.speed = speed;
     Motor_CalculateDelay(&motorA); // Calculate delay specific to Motor A's new speed
 }
 
-//----------------------------------------------------
 // Set speed for Motor B (accepts int8_t)
-//----------------------------------------------------
 void Motor_SetSpeedB(int8_t speed)
 {
     motorB.speed = speed;
     Motor_CalculateDelay(&motorB); // Calculate delay specific to Motor B's new speed
 }
 
-//----------------------------------------------------
 // Init GPIOC + Timer2 for 16 MHz clock
-//----------------------------------------------------
 void Motor_Init(void)
 {
     motorA.speed = 0;
@@ -177,9 +156,7 @@ void Motor_Init(void)
     NVIC_EnableIRQ(TIM2_IRQn);
 }
 
-//----------------------------------------------------
 // Interrupt handler
-//----------------------------------------------------
 void TIM2_IRQHandler(void)
 {
     // Check for Update Interrupt Flag (UIF)
